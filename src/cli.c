@@ -1,14 +1,12 @@
 /****************************************************************************************************
  * @file    cli.c
- * @brief   CLI制御用プログラム
- * @details このファイルにはCLI制御機能を提供するモジュールを定義。
+ * @brief   CLI(Command Line Interface)ライブラリ
+ * @details このファイルではCLIライブラリ用のモジュールを定義。
  *
  * @author  Masakazu Inoue
  * @date    2026/05/24          新規作成
  ****************************************************************************************************
  * @note
- * cmd.hにて外部公開しているAPIのみでコマンド機能が使用可能。
- * 
  * 利用手順を以下に示す。
  * 1. cli_init関数でCLIコンテキストの初期化を行う。
  * 2. cli_set_write_func関数で書き込み関数を設定する。
@@ -28,7 +26,7 @@
 /****************************************************************************************************
  * Private include
  ****************************************************************************************************/
-#include "cli.h"
+#include "../inc/cli.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -46,7 +44,7 @@
         } \
     } while (0)
 #else
-	#define CLI_ASSERT(expr) ((void)0U)
+    #define CLI_ASSERT(expr) ((void)0U)
 #endif /* CLI_DEBUG */
 
 #define CLI_CMD_NULL       NULL
@@ -102,63 +100,93 @@ static int cli_execute_cmd(cli_context_t *ctx);
 static int cli_tokenizer(cli_context_t *ctx);
 static int cli_dispatch(cli_context_t *ctx);
 
-/***
- * @brief ClIコンテキストの初期化
- * @param ctx CLIコンテキスト
- * @return 引数異常(-1) / 成功(0)
+
+/**
+ * @brief CLI初期化
+ * @param ctx CLIの状態データを保持するメモリ領域
+ * @return 処理結果
  */
-int cli_init(cli_context_t *ctx, const char *prompt)
+int cli_init(cli_context_t *ctx)
 {
-    int result = -1;
+    int success = 0;
 
-    if (ctx != NULL)
+    if (ctx == NULL)
     {
-        memset(ctx, '\0', sizeof(cli_context_t));
+        success = -1;
+    }
+    else
+    {
+        /* メモリ0クリア */
+        memset(ctx, 0, sizeof(cli_context_t));
 
-        /* プロンプト設定 */
+        /* デフォルトのプロンプト('>')を設定 */
+        ctx->prompt = ">";
+    }
+
+    return success;
+}
+
+/**
+ * @brief CLI開始
+ *        CLIの開始を通知するメッセージと、プロンプト('>')の表示を行う。
+ * @param message 開始を通知するメッセージ(通知が必要ない場合はNULLを設定する)
+ * @return 処理結果
+ */
+int cli_begin(cli_context_t *ctx, const char *message)
+{
+    int success = 0;
+
+    if (ctx == NULL)
+    {
+        success = -1;
+    }
+    else
+    {
+        if ((message != NULL) || (*message != '\0'))
+        {
+            /* 開始を通知するメッセージを表示 */
+            cli_printf(ctx, "\r\n%s", message);
+        }
+
+        /* プロンプトを表示 */
+        cli_printf(ctx, "\r\n%s", ctx->prompt);
+    }
+
+    return success;
+}
+
+/**
+ * @brief プロンプト設定
+ * @param prompt プロンプトとして表示する文字列を示すメモリ領域
+ * @return 処理結果
+ */
+int cli_set_prompt(cli_context_t *ctx, const char *prompt)
+{
+    int success = 0;
+
+    if (ctx == NULL)
+    {
+        success = -1;
+    }
+    else
+    {
+        /* プロンプトの設定内容を更新 */
         if (prompt == NULL)
         {
+            /* デフォルトのプロンプト('>')を設定 */
             ctx->prompt = ">";
         }
         else
         {
+            /* 任意のプロンプトを設定 */
             ctx->prompt = prompt;
         }
-
-        for (size_t i = 0; i < CLI_CMD_SIZE; i++)
-        {
-            /* コマンドテーブル初期化 */
-            ctx->cmd[i].name[0] = '\0';
-            ctx->cmd[i].func = CLI_CMD_NULL;
-            ctx->cmd[i].is_used = false;
-        }
-
-        result = 0;
     }
 
-    return result;
+    return success;
 }
 
-/***
- * @brief プロンプト表示
- * @param ctx CLIコンテキスト
- * @return 引数異常(-1) / 成功(0)
- */
-int cli_show_prompt(cli_context_t *ctx)
-{
-    int result = -1;
-
-    if (ctx != NULL)
-    {
-        cli_printf(ctx, "\r\n%s", ctx->prompt);
-
-        result = 0;
-    }
-
-    return result;
-}
-
-/***
+/**
  * @brief コマンド登録
  * @param ctx CLIコンテキスト
  * @param name コマンド名
@@ -200,7 +228,7 @@ int cli_cmd_register(cli_context_t *ctx, const char *name, cli_func_t func)
     return result;
 }
 
-/***
+/**
  * @brief コマンド削除
  * @param ctx CLIコンテキスト
  * @param name コマンド名
@@ -231,7 +259,7 @@ int cli_cmd_unregister(cli_context_t *ctx, const char *name)
     return result;
 }
 
-/***
+/**
  * @brief cmd検索
  * @param ctx CLIコンテキスト
  * @param name コマンド名
@@ -279,12 +307,11 @@ static int cli_cmd_find(cli_context_t *ctx, const char *name, bool is_used)
     return index;
 }
 
-/***
- * @name  cli_input_char
+/**
  * @brief CLI入力処理
- * @param ctx CLIコンテキスト
- * @param c 入力文字
- * @return 引数異常(-1) / 成功(0)
+ *        CLIに入力する文字の整形と解釈を行う。
+ * @param c CLIに入力する文字
+ * @return 処理結果
  */
 int cli_input_char(cli_context_t *ctx, char c)
 {
@@ -326,7 +353,7 @@ int cli_input_char(cli_context_t *ctx, char c)
     return 0;
 }
 
-/***
+/**
  * @name  cli_check_input_type
  * @brief 入力タイプの判定
  * @param c 入力文字
@@ -363,7 +390,7 @@ static cli_input_type_t cli_check_input_type(char c)
     return type;
 }
 
-/***
+/**
  * @name  cli_line_edittor
  * @brief CLIラインエディタ
  * @param ctx CLIコンテキスト
@@ -406,7 +433,7 @@ static int cli_line_editor(cli_context_t *ctx, char c)
     return 0;
 }
 
-/***
+/**
  * @name  cli_execute_cmd
  * @brief コマンド実行
  * @param ctx CLIコンテキスト
@@ -448,7 +475,7 @@ static int cli_execute_cmd(cli_context_t *ctx)
     return 0;
 }
 
-/***
+/**
  * @name  cli_tokenizer
  * @brief コマンドラインをスペース区切りでトークンに分割
  * @param ctx CLIコンテキスト
@@ -495,7 +522,7 @@ static int cli_tokenizer(cli_context_t *ctx)
     return ctx->args.argc;
 }
 
-/***
+/**
  * @name  cli_dispatch
  * @brief コマンドのディスパッチ
  * @param ctx CLIコンテキスト
@@ -539,101 +566,135 @@ static int cli_dispatch(cli_context_t *ctx)
     return result;
 }
 
-/***
- * @name   cli_printf
- * @brief  CLI出力関数  (printfと同様のフォーマットで出力)
- * @param  ctx CLIコンテキスト
- * @param  format フォーマット  (printfと同様)
- * @param  ... 可変引数 (printfと同様)
- * @return 出力した文字数 / エラー(-1)
+/**
+ * @brief CLI用標準出力のコールバック設定
+ *        CLIモジュール内で使用する出力処理のコールバックを設定する。
+ * @return 処理結果
  */
-int cli_printf(cli_context_t *ctx, const char * format, ...)
+int cli_set_stdout_cb(cli_context_t *ctx, stdout_cb_t stdout_cb)
 {
-    int size;
-    va_list arg;
+    int success = 0;
 
-    va_start(arg, format);
-
-    size = vsnprintf(ctx->write_buf, sizeof(ctx->write_buf), format, arg);
-
-    va_end(arg);
-
-    if (size >= (int)sizeof(ctx->write_buf))
+    if (ctx == NULL)
     {
-        /* 出力バッファサイズを超える場合は切り詰める */
-        size = sizeof(ctx->write_buf) - 1;
-        ctx->write_buf[size] = '\0';
-    }
-    else if (size < 0)
-    {
-        /* フォーマットエラー等で出力サイズが負の値になる場合はエラーとする */
-        size = -1;
+        success = -1;
     }
     else
     {
-        /* 書き込み関数呼び出し */
-        if (cli_exe_write_callback(ctx, ctx->write_buf, size) != 0)
-        {
-            /* エラー */
-            size = -1;
-        }
+        /* CB登録 */
+        ctx->stdout_cb = stdout_cb;
     }
 
-    return size;
+    return success;
 }
 
-/***
- * @brief 書き込み関数設定
- * @param ctx CLIコンテキスト
- * @param write_cb 書き込みコールバック関数
- * @return 引数異常(-1) / 成功(0)
+/**
+ * @brief CLI用標準出力実行
+ *        CLIに使用するコールバックの呼び出しを行う。
+ * @param p 出力データのポインタ
+ * @param s 出力データサイズ
+ * @return 正常(0) / 失敗(-1) / CB未登録(1)
  */
-int cli_set_write_callback(cli_context_t *ctx, cli_write_cb_t write_cb)
+int cli_stdout(cli_context_t *ctx, const char *p, uint16_t s)
 {
-    int result = -1;
+    int success = 0;
 
-    if (ctx != NULL)
+    if ((ctx == NULL) || (p == NULL))
     {
-        /* 書き込み関数設定 */
-        ctx->write_cb = write_cb;
-
-        result = 0;
-    }
-
-    return result;
-}
-
-/***
- * @brief 書き込み関数呼び出し
- * @param ctx CLIコンテキスト
- * @param data 書き込みデータのメモリ領域
- * @param size 書き込みデータサイズ
- * @return 引数異常(-1) / 書き込み関数未登録(-1) / 成功(0)
- */
-int cli_exe_write_callback(cli_context_t *ctx, const char *data, int size)
-{
-    int result = -1;
-
-    if (ctx->write_cb == NULL)
-    {
-        /* 書き込み関数未登録 */
-        result = -1;
+        success = -1;
     }
     else
     {
-        if ((size == 0) || (data == NULL))
+        if (ctx->stdout_cb)
         {
-            /* 引数異常 */
-            result = -1;
+            /* CLI用標準出力実行 */
+            success = ctx->stdout_cb(p, s);
         }
         else
         {
-            /* 書き込み関数呼び出し */
-            ctx->write_cb(data, (unsigned short)size);
-
-            result = 0;
+            /* CB未登録 */
+            success = 1;
         }
     }
 
-    return result;
+    return success;
+}
+
+/**
+ * @brief CLI用書式付き文字列の標準出力
+ *        printfと同様のフォーマットで書式化文字列の出力を行う
+ * @param  format 出力するときの書式を含む文字列
+ * @param  ...    出力する値のリスト
+ * @return 出力byte数 / 失敗(-1)
+ */
+int cli_printf(cli_context_t *ctx, const char * format, ...)
+{
+    int success = -1;
+    va_list arg;
+
+    if (ctx == NULL)
+    {
+        success = -1;
+    }
+    else
+    {
+        int s = 0;
+        int n = sizeof(ctx->write_buf);     /* 最大文字数(終端文字(\0)を含む) */
+
+        va_start(arg, format);
+        s = vsnprintf(ctx->write_buf, n, format, arg);
+        va_end(arg);
+
+        if (0 < s)
+        {
+            if (n <= s)
+            {
+                /* 出力用bufサイズをoverしているので切り詰める */
+                s = (n - 1);
+                ctx->write_buf[s] = '\0';
+            }
+
+            /* 出力処理実行 */
+            success = cli_stdout(ctx, ctx->write_buf, ((uint16_t)s));
+            if (success == 0)
+            {
+                /* 処理結果として出力byte数を返す */
+                success = s;
+            }
+        }
+        else
+        {
+            /* 表現形式エラー */
+            success = -1;
+        }
+    }
+
+    return success;
+}
+
+/**
+ * @brief CLI用文字の標準出力
+ *        1byte単位でデータを出力する
+ * @param c 出力する文字
+ * @return 正常(0) / 失敗(-1)
+ */
+int cli_putc(cli_context_t *ctx, char c)
+{
+    int success = 0;
+
+    if (ctx == NULL)
+    {
+        success = -1;
+    }
+    else
+    {
+        /* データ整形 */
+        ctx->write_buf[0] = c;
+        ctx->write_buf[1] = '\0';
+
+        /* 出力処理実行 */
+        success = cli_stdout(ctx, ctx->write_buf, 1);
+    }
+
+    return success;
 }
