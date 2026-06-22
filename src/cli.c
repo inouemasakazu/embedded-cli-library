@@ -315,12 +315,10 @@ static int cli_cmd_find(cli_context_t *ctx, const char *name, bool is_used)
  */
 int cli_input_char(cli_context_t *ctx, char c)
 {
-    cli_input_type_t type;
-
     if (ctx == NULL) return -1;
 
-    /* 入力タイプを取得 */
-    type = cli_check_input_type(c);
+    /* 文字データから入力タイプを取得 */
+    cli_input_type_t type = cli_check_input_type(c);
 
     switch (type)
     {
@@ -331,10 +329,15 @@ int cli_input_char(cli_context_t *ctx, char c)
         break;
 
     case CLI_INPUT_ENTER:
-        ctx->current_line.buf[ctx->current_line.size] = '\0';   /* バッファ終端にnull文字を挿入 */
+        /* トークンに分割 */
+        if (0 < cli_tokenizer(ctx))
+        {
+            /* コマンド実行 */
+            cli_execute_cmd(ctx);
+        }
 
-        /* コマンド実行 */
-        cli_execute_cmd(ctx);
+        /* 改行復帰入力時はプロンプトを出力する */
+        cli_printf(ctx, "\r\n%s", ctx->prompt);
 
         /* コマンドライン用バッファ初期化 */
         ctx->current_line.buf[0] = '\0';
@@ -391,9 +394,9 @@ static cli_input_type_t cli_check_input_type(char c)
 }
 
 /**
- * @name  cli_line_edittor
  * @brief CLIラインエディタ
- * @param ctx CLIコンテキスト
+ *        文字データの内容に合わせて、バッファの編集を行う。
+ * @param ctx CLIの状態データを保持するメモリ領域
  * @param c 入力文字
  * @return 引数異常(-1) / 成功(0)
  */
@@ -406,8 +409,8 @@ static int cli_line_editor(cli_context_t *ctx, char c)
         /* 図形文字(空白含む) */
         if (ctx->current_line.size < (CLI_LINE_SIZE - 1))
         {
-            ctx->current_line.buf[ctx->current_line.size] = c;
-            ctx->current_line.size++;
+            ctx->current_line.buf[ctx->current_line.size++] = c;
+            ctx->current_line.buf[ctx->current_line.size  ] = '\0';         /* バッファ終端にNULL文字を挿入 */
         }
 
         cli_printf(ctx, "%c", c);        /* バッファフローしていてもエコーバックは行う */
@@ -421,8 +424,8 @@ static int cli_line_editor(cli_context_t *ctx, char c)
             cli_printf(ctx, "%c", SPC);
             cli_printf(ctx, "%c", BS );
 
-            ctx->current_line.buf[(ctx->current_line.size - 1)] = '\0';
             ctx->current_line.size--;
+            ctx->current_line.buf[ctx->current_line.size] = '\0';
         }
     }
     else
@@ -434,51 +437,39 @@ static int cli_line_editor(cli_context_t *ctx, char c)
 }
 
 /**
- * @name  cli_execute_cmd
  * @brief コマンド実行
- * @param ctx CLIコンテキスト
- * @return 引数異常(-1) / 成功(0)
+ * @param ctx CLIの状態データを保持するメモリ領域
+ * @return 処理結果
  */
 static int cli_execute_cmd(cli_context_t *ctx)
 {
     CLI_ASSERT(ctx != NULL);
 
-    /* コマンドラインをトークンに分割 */
-    if (cli_tokenizer(ctx) > 0)
-    {
-        /* コマンドのディスパッチ */
-        int result = cli_dispatch(ctx);
-        if (result == 1)
-        {
-            /* コマンド未登録 */
-            cli_printf(ctx, "\r\nError: '%s' command not found\r\n", ctx->args.argv[0]);
-        }
-        else if (result == -1)
-        {
-            /* コマンド実行エラー */
-            cli_printf(ctx, "\r\nError: command execution failed\r\n");
-        }
-        else
-        {
-            /* コマンド実行成功 */
-        }
+    /* コマンドのディスパッチ */
+    int success = cli_dispatch(ctx);
 
-        /* コマンド実行後はプロンプトを表示 */
-        cli_printf(ctx, "\r\n%s", ctx->prompt);
+    /* コマンドの結果に応じたメッセージを表示 */
+    if (success == 1)
+    {
+        /* 該当コマンドなし */
+        cli_printf(ctx, "\r\nError: '%s' command not found\r\n", ctx->args.argv[0]);
+    }
+    else if (success == -1)
+    {
+        /* 実行コマンドのエラー */
+        cli_printf(ctx, "\r\nError: command execution failed\r\n");
     }
     else
     {
-        /* コマンドラインが空の場合はプロンプトを表示 */
-        cli_printf(ctx, "\r\n%s", ctx->prompt);
+        /* コマンド実行成功 */
     }
 
     return 0;
 }
 
 /**
- * @name  cli_tokenizer
  * @brief コマンドラインをスペース区切りでトークンに分割
- * @param ctx CLIコンテキスト
+ * @param ctx CLIの状態データを保持するメモリ領域
  * @return 引数の数 (0以上)
  * @note 引数の最大数はCLI_ARGV_SIZEで定義されている値まで。引数の最大数を超える場合は切り詰める。
  *       引数の最大数に達していない場合は、argvの最後をNULLにする。
@@ -486,6 +477,7 @@ static int cli_execute_cmd(cli_context_t *ctx)
 static int cli_tokenizer(cli_context_t *ctx)
 {
     CLI_ASSERT(ctx != NULL);
+
     char *token = ctx->current_line.buf;
 
     ctx->args.argc = 0;
