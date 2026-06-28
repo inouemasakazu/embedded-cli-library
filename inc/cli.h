@@ -124,30 +124,5 @@ int cli_input_char(cli_context_t *ctx, char c);
  */
 int cli_set_stdout_cb(cli_context_t *ctx, stdout_cb_t stdout_cb);
 
-/**
- * @brief CLI用標準出力実行
- *        
- * @param p 出力データのポインタ
- * @param s 出力データサイズ
- * @return 正常(0) / 失敗(-1)
- */
-int cli_stdout(cli_context_t *ctx, const char *p, uint16_t s);
-
-/**
- * @brief CLI用書式付き文字列の標準出力
- *        printfと同様のフォーマットで書式化文字列の出力を行う
- * @param  format 出力するときの書式を含む文字列
- * @param  ...    出力する値のリスト
- * @return 出力byte数 / 失敗(-1)
- */
-int cli_printf(cli_context_t *ctx, const char *format, ...);
-
-/**
- * @brief CLI用文字の標準出力
- *        1byte単位でデータを出力する
- * @param c 出力する文字
- * @return 正常(0) / 失敗(-1)
- */
-int cli_putc(cli_context_t *ctx, char c);
 
 #endif  /* __CLI_H__ */
