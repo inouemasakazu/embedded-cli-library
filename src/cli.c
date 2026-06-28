@@ -155,9 +155,9 @@ int cli_begin(cli_context_t *ctx, const char *message)
 }
 
 /**
- * @brief CLI入力処理
- *        CLIに入力する文字の整形と解釈を行う。
- * @param c CLIに入力する文字
+ * @brief CLIキャラクタ入力処理
+ *        入力するキャラクタデータの管理・コマンド実行の判断を行う。
+ * @param c 入力するキャラクタデータ
  * @return 処理結果
  */
 int cli_input_char(cli_context_t *ctx, char c)
