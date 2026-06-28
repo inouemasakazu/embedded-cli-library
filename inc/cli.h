@@ -12,23 +12,30 @@
 /****************************************************************************************************
  * Public include
  ****************************************************************************************************/
-#include "stdint.h"
-
+#include <stdint.h>
 #include <stdbool.h>
 
 /****************************************************************************************************
  * Public define
  ****************************************************************************************************/
 #define CLI_LINE_SIZE      128      /* 128byte buf */
-#define CLI_ARGV_SIZE        8      /* 8 args */
 
 #define CLI_CMD_NAME_SIZE   32      /* 32byte cmd name */
-#define CLI_CMD_SIZE        10      /* 10 command */
+
+#define CLI_CMD_ENTRY_MAX   10
+#define CLI_CMD_ARGS_MAX     8
 
 /****************************************************************************************************
  * Public typedef
  ****************************************************************************************************/
-typedef int (*cli_func_t)(int argc, char **argv);
+
+/**
+ * @brief CLIコマンドハンドラ型
+ * @param argc コマンド引数の数
+ * @param argv コマンド引数を格納する文字列配列
+ * @return 処理結果
+ */
+typedef int (*cmd_handler_t)(int argc, char **argv);
 
 /**
  * @brief CLI用標準出力のコールバック型
@@ -41,15 +48,15 @@ typedef int (*stdout_cb_t)(const char *p, uint16_t s);
 typedef struct
 {
     char name[CLI_CMD_NAME_SIZE];
-    cli_func_t func;
+    cmd_handler_t handler;
     bool is_used;
-} cli_cmd_t;
+} cli_cmd_entry_t;
 
 typedef struct
 {
     int argc;
-    char *argv[CLI_ARGV_SIZE];
-} cli_line_args_t;
+    char *argv[CLI_CMD_ARGS_MAX];
+} cli_cmd_args_t;
 
 typedef struct
 {
@@ -62,10 +69,10 @@ typedef struct
     const char *prompt;
 
     cli_line_t current_line;
-    cli_line_args_t args;
 
-    /* cli cmd entry func */
-    cli_cmd_t cmd[CLI_CMD_SIZE];
+    /* cli cmd structure */
+    cli_cmd_entry_t cmd[CLI_CMD_ENTRY_MAX];
+    cli_cmd_args_t args;
 
     /* cli write callback */
     char write_buf[CLI_LINE_SIZE * 2];    /* 書き込み用バッファ */
@@ -104,7 +111,19 @@ int cli_begin(cli_context_t *ctx, const char *message);
  */
 int cli_input_char(cli_context_t *ctx, char c);
 
-int cli_cmd_register(cli_context_t *ctx, const char *name, cli_func_t func);
+/**
+ * @brief コマンド登録
+ * @param name    登録コマンドの名称
+ * @param handler コマンド実行時に呼び出されるハンドラ
+ * @return 処理結果
+ */
+int cli_cmd_register(cli_context_t *ctx, const char *name, cmd_handler_t handler);
+
+/**
+ * @brief コマンド登録解除
+ * @param name 登録解除するコマンドの名称
+ * @return 処理結果
+ */
 int cli_cmd_unregister(cli_context_t *ctx, const char *name);
 
 

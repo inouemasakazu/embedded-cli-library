@@ -331,7 +331,7 @@ static int cli_tokenizer(cli_context_t *ctx)
     memset(ctx->args.argv, '\0', sizeof(ctx->args.argv));
 
     /* コマンドラインをスペース区切りでトークンに分割 */
-    while ((*token != '\0') && (ctx->args.argc < CLI_ARGV_SIZE))
+    while ((*token != '\0') && (ctx->args.argc < CLI_CMD_ARGS_MAX))
     {
         while (*token == ' ') token++;
 
@@ -352,7 +352,7 @@ static int cli_tokenizer(cli_context_t *ctx)
         token++;
     }
 
-    if (ctx->args.argc < CLI_ARGV_SIZE)
+    if (ctx->args.argc < CLI_CMD_ARGS_MAX)
     {
         /* 引数の最大数に達していない場合は、argvの最後をNULLにする */
         ctx->args.argv[ctx->args.argc] = NULL;
@@ -386,10 +386,10 @@ static int cli_dispatch(cli_context_t *ctx)
         if (index >= 0)
         {
             /* コマンドあり */
-            if (ctx->cmd[index].func != CLI_CMD_NULL)
+            if (ctx->cmd[index].handler != CLI_CMD_NULL)
             {
                 /* コマンド関数がNULLでない場合は、コマンド実行 */
-                result = ctx->cmd[index].func(ctx->args.argc, ctx->args.argv);
+                result = ctx->cmd[index].handler(ctx->args.argc, ctx->args.argv);
             }
             else
             {
@@ -407,16 +407,15 @@ static int cli_dispatch(cli_context_t *ctx)
 
 /**
  * @brief コマンド登録
- * @param ctx CLIコンテキスト
- * @param name コマンド名
- * @param func コマンド関数
- * @return 引数異常(-1) / 成功(0) / 空きなし(1)
+ * @param name    登録コマンドの名称
+ * @param handler コマンド実行時に呼び出されるハンドラ
+ * @return 処理結果
  */
-int cli_cmd_register(cli_context_t *ctx, const char *name, cli_func_t func)
+int cli_cmd_register(cli_context_t *ctx, const char *name, cmd_handler_t handler)
 {
     int result = -1;
 
-    if ((ctx == NULL) || (name == NULL) || (func == NULL)) return result;
+    if ((ctx == NULL) || (name == NULL) || (handler == NULL)) return result;
 
     int index = cli_cmd_find(ctx, name, true);
 
@@ -433,7 +432,7 @@ int cli_cmd_register(cli_context_t *ctx, const char *name, cli_func_t func)
         {
             /* コマンド登録 */
             snprintf(&ctx->cmd[index].name[0], sizeof(ctx->cmd[index].name), "%s", name);
-            ctx->cmd[index].func    = func;
+            ctx->cmd[index].handler = handler;
             ctx->cmd[index].is_used = true;
     
             result = 0;     /* 登録成功 */
@@ -448,10 +447,9 @@ int cli_cmd_register(cli_context_t *ctx, const char *name, cli_func_t func)
 }
 
 /**
- * @brief コマンド削除
- * @param ctx CLIコンテキスト
- * @param name コマンド名
- * @return 引数異常(-1) / 成功(0) / 見つからなかった(1)
+ * @brief コマンド登録解除
+ * @param name 登録解除するコマンドの名称
+ * @return 処理結果
  */
 int cli_cmd_unregister(cli_context_t *ctx, const char *name)
 {
@@ -465,7 +463,7 @@ int cli_cmd_unregister(cli_context_t *ctx, const char *name)
     {
         /* コマンド削除 */
         memset(&ctx->cmd[index].name[0], '\0', sizeof(ctx->cmd[index].name));
-        ctx->cmd[index].func    = CLI_CMD_NULL;
+        ctx->cmd[index].handler = CLI_CMD_NULL;
         ctx->cmd[index].is_used = false;
 
         result = 0;
@@ -493,7 +491,7 @@ static int cli_cmd_find(cli_context_t *ctx, const char *name, bool is_used)
     bool is_find = false;
 
     /* 同名のコマンドを探す */
-    for (i = 0; i < CLI_CMD_SIZE; i++)
+    for (i = 0; i < CLI_CMD_ENTRY_MAX; i++)
     {
         if (is_used == true)
         {
