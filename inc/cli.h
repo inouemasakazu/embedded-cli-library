@@ -97,16 +97,6 @@ int cli_init(cli_context_t *ctx);
 int cli_begin(cli_context_t *ctx, const char *message);
 
 /**
- * @brief プロンプト設定
- * @param prompt プロンプトとして表示する文字列を示すメモリ領域
- * @return 処理結果
- */
-int cli_set_prompt(cli_context_t *ctx, const char *prompt);
-
-int cli_cmd_register(cli_context_t *ctx, const char *name, cli_func_t func);
-int cli_cmd_unregister(cli_context_t *ctx, const char *name);
-
-/**
  * @brief CLI入力処理
  *        CLIに入力する文字の整形と解釈を行う。
  * @param c CLIに入力する文字
@@ -114,8 +104,19 @@ int cli_cmd_unregister(cli_context_t *ctx, const char *name);
  */
 int cli_input_char(cli_context_t *ctx, char c);
 
+int cli_cmd_register(cli_context_t *ctx, const char *name, cli_func_t func);
+int cli_cmd_unregister(cli_context_t *ctx, const char *name);
 
-/*** cli_stdio ***/
+/********************
+ * Setter functions
+ ********************/
+
+/**
+ * @brief プロンプト設定
+ * @param prompt プロンプトとして表示する文字列を示すメモリ領域
+ * @return 処理結果
+ */
+int cli_set_prompt(cli_context_t *ctx, const char *prompt);
 
 /**
  * @brief CLI用標準出力のコールバック設定

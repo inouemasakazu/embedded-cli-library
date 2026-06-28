@@ -90,8 +90,6 @@ typedef enum
  * Private Functions
  ****************************************************************************************************/
 
-static int cli_cmd_find(cli_context_t *ctx, const char *name, bool is_used);
-
 static cli_input_type_t cli_check_input_type(char c);
 
 static int cli_line_editor(cli_context_t *ctx, char c);
@@ -100,6 +98,7 @@ static int cli_execute_cmd(cli_context_t *ctx);
 static int cli_tokenizer(cli_context_t *ctx);
 static int cli_dispatch(cli_context_t *ctx);
 
+static int cli_cmd_find(cli_context_t *ctx, const char *name, bool is_used);
 
 /**
  * @brief CLI初期化
@@ -153,158 +152,6 @@ int cli_begin(cli_context_t *ctx, const char *message)
     }
 
     return success;
-}
-
-/**
- * @brief プロンプト設定
- * @param prompt プロンプトとして表示する文字列を示すメモリ領域
- * @return 処理結果
- */
-int cli_set_prompt(cli_context_t *ctx, const char *prompt)
-{
-    int success = 0;
-
-    if (ctx == NULL)
-    {
-        success = -1;
-    }
-    else
-    {
-        /* プロンプトの設定内容を更新 */
-        if (prompt == NULL)
-        {
-            /* デフォルトのプロンプト('>')を設定 */
-            ctx->prompt = ">";
-        }
-        else
-        {
-            /* 任意のプロンプトを設定 */
-            ctx->prompt = prompt;
-        }
-    }
-
-    return success;
-}
-
-/**
- * @brief コマンド登録
- * @param ctx CLIコンテキスト
- * @param name コマンド名
- * @param func コマンド関数
- * @return 引数異常(-1) / 成功(0) / 空きなし(1)
- */
-int cli_cmd_register(cli_context_t *ctx, const char *name, cli_func_t func)
-{
-    int result = -1;
-
-    if ((ctx == NULL) || (name == NULL) || (func == NULL)) return result;
-
-    int index = cli_cmd_find(ctx, name, true);
-
-    if (index >= 0)
-    {
-        /* 同名のコマンドが登録されている場合は、登録失敗 */
-        result = 1;
-    }
-    else
-    {
-        /* 空きを探す */
-        index = cli_cmd_find(ctx, name, false);
-        if (index >= 0)
-        {
-            /* コマンド登録 */
-            snprintf(&ctx->cmd[index].name[0], sizeof(ctx->cmd[index].name), "%s", name);
-            ctx->cmd[index].func    = func;
-            ctx->cmd[index].is_used = true;
-    
-            result = 0;     /* 登録成功 */
-        }
-        else
-        {
-            result = 1;     /* 空きなし */
-        }
-    }
-
-    return result;
-}
-
-/**
- * @brief コマンド削除
- * @param ctx CLIコンテキスト
- * @param name コマンド名
- * @return 引数異常(-1) / 成功(0) / 見つからなかった(1)
- */
-int cli_cmd_unregister(cli_context_t *ctx, const char *name)
-{
-    int result = -1;
-
-    if ((ctx == NULL) || (name == NULL)) return result;
-    
-    int index = cli_cmd_find(ctx, name, true);
-
-    if (index >= 0)
-    {
-        /* コマンド削除 */
-        memset(&ctx->cmd[index].name[0], '\0', sizeof(ctx->cmd[index].name));
-        ctx->cmd[index].func    = CLI_CMD_NULL;
-        ctx->cmd[index].is_used = false;
-
-        result = 0;
-    }
-    else
-    {
-        result = 1;
-    }
-
-    return result;
-}
-
-/**
- * @brief cmd検索
- * @param ctx CLIコンテキスト
- * @param name コマンド名
- * @param is_used 登録されているコマンドを探す場合はtrue、空きを探す場合はfalse
- * @return コマンドテーブルのインデックス(0～) / 見つからなかった(-1)
- */
-static int cli_cmd_find(cli_context_t *ctx, const char *name, bool is_used)
-{
-    int index = -1;
-
-    size_t i;
-    bool is_find = false;
-
-    /* 同名のコマンドを探す */
-    for (i = 0; i < CLI_CMD_SIZE; i++)
-    {
-        if (is_used == true)
-        {
-            /* 登録されているコマンドを探す場合は、同名のコマンドが登録されているかを探す */
-            if ((ctx->cmd[i].is_used == true) && (strcmp(name, ctx->cmd[i].name) == 0))
-            {
-                /* コマンドあり */
-                is_find = true;
-                break;
-            }
-        }
-        else
-        {
-            /* 空きを探す場合は、同名のコマンドが登録されていないかを探す */
-            if ((ctx->cmd[i].is_used == false) && (strcmp(name, ctx->cmd[i].name) != 0))
-            {
-                /* 空きあり */
-                is_find = true;
-                break;
-            }
-        }
-    }
-
-    if (is_find == true)
-    {
-        /* 一致するコマンドあり */
-        index = i;
-    }
-
-    return index;
 }
 
 /**
@@ -556,6 +403,158 @@ static int cli_dispatch(cli_context_t *ctx)
     }
 
     return result;
+}
+
+/**
+ * @brief コマンド登録
+ * @param ctx CLIコンテキスト
+ * @param name コマンド名
+ * @param func コマンド関数
+ * @return 引数異常(-1) / 成功(0) / 空きなし(1)
+ */
+int cli_cmd_register(cli_context_t *ctx, const char *name, cli_func_t func)
+{
+    int result = -1;
+
+    if ((ctx == NULL) || (name == NULL) || (func == NULL)) return result;
+
+    int index = cli_cmd_find(ctx, name, true);
+
+    if (index >= 0)
+    {
+        /* 同名のコマンドが登録されている場合は、登録失敗 */
+        result = 1;
+    }
+    else
+    {
+        /* 空きを探す */
+        index = cli_cmd_find(ctx, name, false);
+        if (index >= 0)
+        {
+            /* コマンド登録 */
+            snprintf(&ctx->cmd[index].name[0], sizeof(ctx->cmd[index].name), "%s", name);
+            ctx->cmd[index].func    = func;
+            ctx->cmd[index].is_used = true;
+    
+            result = 0;     /* 登録成功 */
+        }
+        else
+        {
+            result = 1;     /* 空きなし */
+        }
+    }
+
+    return result;
+}
+
+/**
+ * @brief コマンド削除
+ * @param ctx CLIコンテキスト
+ * @param name コマンド名
+ * @return 引数異常(-1) / 成功(0) / 見つからなかった(1)
+ */
+int cli_cmd_unregister(cli_context_t *ctx, const char *name)
+{
+    int result = -1;
+
+    if ((ctx == NULL) || (name == NULL)) return result;
+    
+    int index = cli_cmd_find(ctx, name, true);
+
+    if (index >= 0)
+    {
+        /* コマンド削除 */
+        memset(&ctx->cmd[index].name[0], '\0', sizeof(ctx->cmd[index].name));
+        ctx->cmd[index].func    = CLI_CMD_NULL;
+        ctx->cmd[index].is_used = false;
+
+        result = 0;
+    }
+    else
+    {
+        result = 1;
+    }
+
+    return result;
+}
+
+/**
+ * @brief cmd検索
+ * @param ctx CLIコンテキスト
+ * @param name コマンド名
+ * @param is_used 登録されているコマンドを探す場合はtrue、空きを探す場合はfalse
+ * @return コマンドテーブルのインデックス(0～) / 見つからなかった(-1)
+ */
+static int cli_cmd_find(cli_context_t *ctx, const char *name, bool is_used)
+{
+    int index = -1;
+
+    size_t i;
+    bool is_find = false;
+
+    /* 同名のコマンドを探す */
+    for (i = 0; i < CLI_CMD_SIZE; i++)
+    {
+        if (is_used == true)
+        {
+            /* 登録されているコマンドを探す場合は、同名のコマンドが登録されているかを探す */
+            if ((ctx->cmd[i].is_used == true) && (strcmp(name, ctx->cmd[i].name) == 0))
+            {
+                /* コマンドあり */
+                is_find = true;
+                break;
+            }
+        }
+        else
+        {
+            /* 空きを探す場合は、同名のコマンドが登録されていないかを探す */
+            if ((ctx->cmd[i].is_used == false) && (strcmp(name, ctx->cmd[i].name) != 0))
+            {
+                /* 空きあり */
+                is_find = true;
+                break;
+            }
+        }
+    }
+
+    if (is_find == true)
+    {
+        /* 一致するコマンドあり */
+        index = i;
+    }
+
+    return index;
+}
+
+/**
+ * @brief プロンプト設定
+ * @param prompt プロンプトとして表示する文字列を示すメモリ領域
+ * @return 処理結果
+ */
+int cli_set_prompt(cli_context_t *ctx, const char *prompt)
+{
+    int success = 0;
+
+    if (ctx == NULL)
+    {
+        success = -1;
+    }
+    else
+    {
+        /* プロンプトの設定内容を更新 */
+        if (prompt == NULL)
+        {
+            /* デフォルトのプロンプト('>')を設定 */
+            ctx->prompt = ">";
+        }
+        else
+        {
+            /* 任意のプロンプトを設定 */
+            ctx->prompt = prompt;
+        }
+    }
+
+    return success;
 }
 
 /**
