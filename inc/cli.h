@@ -61,14 +61,38 @@ typedef struct
 typedef struct
 {
     char buf[CLI_LINE_SIZE];
-    unsigned short size;
+    uint8_t size;
 } cli_line_t;
+
+typedef struct
+{
+    uint8_t x;
+    uint8_t y;
+} cli_cursor_t;
+
+typedef struct
+{
+    bool sequence;
+    char buf[8];
+    uint8_t size;
+} cli_escape_t;
+
+
+typedef struct
+{
+    cli_line_t current;
+    cli_line_t history[5];
+
+    cli_cursor_t cursor;
+    cli_escape_t escape;
+} cli_cmd_line_t;
 
 typedef struct
 {
     const char *prompt;
 
-    cli_line_t current_line;
+    /* コマンドライン管理データ */
+    cli_cmd_line_t cmd_line;
 
     /* cli cmd structure */
     cli_cmd_entry_t cmd[CLI_CMD_ENTRY_MAX];

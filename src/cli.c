@@ -171,8 +171,10 @@ int cli_input_char(cli_context_t *ctx, char c)
     {
     case CLI_INPUT_TEXT:
     case CLI_INPUT_BACKSPACE:
-        /* コマンドラインエディタ */
+    case CLI_INPUT_ESCAPE:
+        /* コマンドラインの編集 */
         cli_line_editor(ctx, c);
+
         break;
 
     case CLI_INPUT_ENTER:
@@ -187,12 +189,9 @@ int cli_input_char(cli_context_t *ctx, char c)
         cli_printf(ctx, "\r\n%s", ctx->prompt);
 
         /* コマンドライン用バッファ初期化 */
-        ctx->current_line.buf[0] = '\0';
-        ctx->current_line.size = 0;
-        break;
-
-    case CLI_INPUT_ESCAPE:
-        /* DO NOTHING */
+        ctx->cmd_line.current.buf[0] = '\0';
+        ctx->cmd_line.current.size   = 0;
+        ctx->cmd_line.cursor.y = 0;
         break;
 
     default:
@@ -230,7 +229,7 @@ static cli_input_type_t cli_check_input_type(char c)
     }
     else if (c == ESC)
     {
-        /* エスケープシーケンスは未実装 */
+        type = CLI_INPUT_ESCAPE;
     }
     else
     {
@@ -241,8 +240,8 @@ static cli_input_type_t cli_check_input_type(char c)
 }
 
 /**
- * @brief CLIラインエディタ
- *        文字データの内容に合わせて、バッファの編集を行う。
+ * @brief コマンドラインの編集
+ *        入力された文字データに応じてコマンドライン用bufの編集処理を行う。
  * @param ctx CLIの状態データを保持するメモリ領域
  * @param c 入力文字
  * @return 引数異常(-1) / 成功(0)
@@ -251,33 +250,187 @@ static int cli_line_editor(cli_context_t *ctx, char c)
 {
     CLI_ASSERT(ctx != NULL);
 
-    if ((SPC <= c) && (c <= 0x7e))
+    bool is_esc = false;
+    char out = '\0';
+
+    char temp[128] = {'\0'};
+
+    if (ctx->cmd_line.escape.sequence)
     {
-        /* 図形文字(空白含む) */
-        if (ctx->current_line.size < (CLI_LINE_SIZE - 1))
+        /* ESCシーケンスの解釈 */
+        ctx->cmd_line.escape.buf[ctx->cmd_line.escape.size    ] = c;
+        ctx->cmd_line.escape.buf[ctx->cmd_line.escape.size + 1] = '\0';
+        ctx->cmd_line.escape.size++;
+
+        /* ESCシーケンスの種別ごとに分岐 */
+        if (('[' == ctx->cmd_line.escape.buf[0]) && (2 <= ctx->cmd_line.escape.size))
         {
-            ctx->current_line.buf[ctx->current_line.size++] = c;
-            ctx->current_line.buf[ctx->current_line.size  ] = '\0';         /* バッファ終端にNULL文字を挿入 */
+            switch (ctx->cmd_line.escape.buf[1])
+            {
+            // case 'A':
+            //     is_esc = false;
+            //     c = 'A';
+            //     break;
+
+            // case 'B':
+            //     is_esc = false;
+            //     c = 'B';
+            //     break;
+
+            case 'C':
+                /* カーソル右移動 */
+                if (ctx->cmd_line.cursor.y < ctx->cmd_line.current.size)
+                {
+                    is_esc = true;
+                    out = 'C';
+
+                    ctx->cmd_line.cursor.y++;
+                }
+                break;
+
+            case 'D':
+                /* カーソル左移動 */
+                //if ((0 < ctx->cmd_line.cursor.y) && (ctx->cmd_line.cursor.y <= ctx->cmd_line.current.size))
+                if (0 < ctx->cmd_line.cursor.y)
+                {
+                    is_esc = true;
+                    out = 'D';
+
+                    ctx->cmd_line.cursor.y--;
+                }
+                break;
+
+            default:
+                is_esc = false;
+                break;
+            }
+
+            if (is_esc)
+            {
+                /* 条件を満たしたので出力する */
+                cli_printf(ctx, "\e[%c", out);
+            }
+
+            /* ESCの分岐結果に関わらずフラグはoffにする */
+            ctx->cmd_line.escape.sequence = false;
         }
-
-        cli_printf(ctx, "%c", c);        /* バッファフローしていてもエコーバックは行う */
-    }
-    else if (c == BS)
-    {
-        /* バックスペース */
-        if (ctx->current_line.size > 0)
+        else if ('[' != ctx->cmd_line.escape.buf[0])
         {
-            cli_printf(ctx, "%c", BS );
-            cli_printf(ctx, "%c", SPC);
-            cli_printf(ctx, "%c", BS );
-
-            ctx->current_line.size--;
-            ctx->current_line.buf[ctx->current_line.size] = '\0';
+            /* ESC入力としての解釈不能なためフラグはoffにする */
+            ctx->cmd_line.escape.sequence = false;
+        }
+        else
+        {
+            /* DO NOTHING */
         }
     }
     else
     {
-        /* 図形文字以外の処理はなし */
+        if (ESC == c)
+        {
+            /* ESCシーケンスの入力 */
+            ctx->cmd_line.escape.sequence = true;
+            ctx->cmd_line.escape.buf[0] = '\0';
+            ctx->cmd_line.escape.size   = 0;
+        }
+        else
+        {
+            /* キャラクタの入力 */
+            if (ctx->cmd_line.current.size <= ctx->cmd_line.cursor.y)
+            {
+                /* 入力データサイズがカーソル位置より小さい */
+                if ((SPC <= c) && (c <= 0x7e))
+                {
+                    /* 図形文字(空白含む) */
+                    if (ctx->cmd_line.current.size < (CLI_LINE_SIZE - 1))
+                    {
+                        ctx->cmd_line.current.buf[ctx->cmd_line.current.size    ] = c;
+                        ctx->cmd_line.current.buf[ctx->cmd_line.current.size + 1] = '\0';         /* バッファ終端にNULL文字を挿入 */
+                        ctx->cmd_line.current.size++;
+
+                        ctx->cmd_line.cursor.y++;
+                    }
+
+                    cli_printf(ctx, "%c", c);        /* バッファフローしていてもエコーバックは行う */
+                }
+                else if (BS == c)
+                {
+                    /* バックスペース */
+                    if (0 < ctx->cmd_line.current.size)
+                    {
+                        ctx->cmd_line.current.size--;
+                        ctx->cmd_line.current.buf[ctx->cmd_line.current.size] = '\0';
+
+                        ctx->cmd_line.cursor.y--;
+
+                        cli_printf(ctx, "%c", BS );
+                        cli_printf(ctx, "%c", SPC);
+                        cli_printf(ctx, "%c", BS );
+                    }
+                }
+                else
+                {
+                    /* 図形文字以外は受付しない */
+                }
+            }
+            else
+            {
+                /* 入力データサイズがカーソル位置より大きい */
+                if ((SPC <= c) && (c <= 0x7e))
+                {
+                    /* 現在のカーソル位置から後ろの文字列を一時bufに退避 */
+                    memccpy(&temp[0], &ctx->cmd_line.current.buf[ctx->cmd_line.cursor.y], '\0', 128);
+
+                    /* 現在のカーソル位置に文字を挿入 */
+                    ctx->cmd_line.current.buf[ctx->cmd_line.cursor.y    ] = c;
+                    ctx->cmd_line.current.buf[ctx->cmd_line.cursor.y + 1] = '\0';
+                    ctx->cmd_line.cursor.y++;
+
+                    /* 一時bufに退避した文字列を最新のカーソル位置に挿入 */
+                    memccpy(&ctx->cmd_line.current.buf[ctx->cmd_line.cursor.y], &temp[0], '\0', 128);
+
+                    /* データサイズ更新 */
+                    ctx->cmd_line.current.size++;
+
+                    /* カーソルのある行を1行ごと再描画 */
+                    cli_printf(ctx, "\033[2K");                                 /* カーソルが存在する１行を消去 */
+                    cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
+                    cli_printf(ctx, ">%s", &ctx->cmd_line.current.buf[0]);      /* 1行ごと再描画 */
+                    cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
+                    cli_printf(ctx, "\e[%dC", ctx->cmd_line.cursor.y + 1);          /* 現在のカーソル位置に移動 */
+                }
+                else if (BS == c)
+                {
+                    /* バックスペース */
+                    if ((0 < ctx->cmd_line.current.size) && (0 < ctx->cmd_line.cursor.y))
+                    {
+                        /* 現在のカーソル位置から後ろの文字列を一時bufに退避 */
+                        memccpy(&temp[0], &ctx->cmd_line.current.buf[ctx->cmd_line.cursor.y], '\0', 128);
+
+                        /* 現在のカーソル位置に存在する文字を削除 */
+                        ctx->cmd_line.cursor.y--;
+                        ctx->cmd_line.current.buf[ctx->cmd_line.cursor.y] = '\0';
+
+                        /* 一時bufに退避した文字列を最新のカーソル位置に挿入 */
+                        memccpy(&ctx->cmd_line.current.buf[ctx->cmd_line.cursor.y], &temp[0], '\0', 128);
+
+                        /* データサイズ更新 */
+                        ctx->cmd_line.current.size--;
+
+                        /* カーソルのある行を1行ごと再描画 */
+                        cli_printf(ctx, "\033[2K");                                 /* カーソルが存在する１行を消去 */
+                        cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
+                        cli_printf(ctx, ">%s", &ctx->cmd_line.current.buf[0]);      /* 1行ごと再描画 */
+                        cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
+                        cli_printf(ctx, "\e[%dC", ctx->cmd_line.cursor.y + 1);      /* 現在のカーソル位置に移動 */
+                    }
+                }
+                else
+                {
+                    /* 図形文字以外は受付しない */
+                }
+            }
+        }
     }
 
     return 0;
@@ -325,7 +478,7 @@ static int cli_tokenizer(cli_context_t *ctx)
 {
     CLI_ASSERT(ctx != NULL);
 
-    char *token = ctx->current_line.buf;
+    char *token = ctx->cmd_line.current.buf;
 
     ctx->args.argc = 0;
     memset(ctx->args.argv, '\0', sizeof(ctx->args.argv));
