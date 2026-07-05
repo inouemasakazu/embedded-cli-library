@@ -78,8 +78,12 @@ typedef enum
  */
 static cli_kind_e cli_kind_check(char c);
 
-static int cli_execute_cmd(cli_context_t *ctx);
-static int cli_tokenizer(cli_context_t *ctx);
+/**
+ * @brief コマンド実行処理
+ */
+static void cli_cmd_execute(cli_context_t *ctx);
+
+static void cli_tokenizer(cli_context_t *ctx);
 static int cli_dispatch(cli_context_t *ctx);
 
 static int cli_cmd_find(cli_context_t *ctx, const char *name, bool is_used);
@@ -164,16 +168,8 @@ int cli_input_char(cli_context_t *ctx, char c)
             break;
 
         case CLI_KIND_CMD_EXECUTE:
-            /* コマンドを実行 */
-            /* トークンに分割 */
-            if (0 < cli_tokenizer(ctx))
-            {
-                /* コマンド実行 */
-                cli_execute_cmd(ctx);
-            }
-
-            /* Command Line改行 */
-            cli_editor_new_line(ctx);
+            /* コマンド実行 */
+            cli_cmd_execute(ctx);
             break;
 
         case CLI_KIND_NONE:
@@ -228,34 +224,43 @@ static cli_kind_e cli_kind_check(char c)
 }
 
 /**
- * @brief コマンド実行
- * @param ctx CLIの状態データを保持するメモリ領域
- * @return 処理結果
+ * @brief コマンド実行処理
  */
-static int cli_execute_cmd(cli_context_t *ctx)
+static void cli_cmd_execute(cli_context_t *ctx)
 {
     CLI_ASSERT(ctx != NULL);
 
-    /* コマンドのディスパッチ */
-    int success = cli_dispatch(ctx);
+    /* Command Lineをトークンに分割 */
+    cli_tokenizer(ctx);
 
-    /* コマンドの結果に応じたメッセージを表示 */
-    if (success == 1)
+    if (0 < ctx->args.argc)
     {
-        /* 該当コマンドなし */
-        cli_printf(ctx, "\r\nError: '%s' command not found\r\n", ctx->args.argv[0]);
-    }
-    else if (success == -1)
-    {
-        /* 実行コマンドのエラー */
-        cli_printf(ctx, "\r\nError: command execution failed\r\n");
+        /* コマンドのディスパッチ */
+        int success = cli_dispatch(ctx);
+
+        /* コマンドの実行結果に応じてメッセージを描画 */
+        if (success == 1)
+        {
+            /* 該当コマンドなし */
+            cli_printf(ctx, "\r\nError: '%s' command not found\r\n", ctx->args.argv[0]);
+        }
+        else if (success == -1)
+        {
+            /* 実行コマンドのエラー */
+            cli_printf(ctx, "\r\nError: command execution failed\r\n");
+        }
+        else
+        {
+            /* DO NOTHING */
+        }
     }
     else
     {
-        /* コマンド実行成功 */
+        /* DO NOTHING */
     }
 
-    return 0;
+    /* Command Line改行 */
+    cli_editor_new_line(ctx);
 }
 
 /**
@@ -265,10 +270,8 @@ static int cli_execute_cmd(cli_context_t *ctx)
  * @note 引数の最大数はCLI_ARGV_SIZEで定義されている値まで。引数の最大数を超える場合は切り詰める。
  *       引数の最大数に達していない場合は、argvの最後をNULLにする。
  */
-static int cli_tokenizer(cli_context_t *ctx)
+static void cli_tokenizer(cli_context_t *ctx)
 {
-    CLI_ASSERT(ctx != NULL);
-
     char *token = ctx->cmd_line.current.buf;
 
     ctx->args.argc = 0;
@@ -301,8 +304,6 @@ static int cli_tokenizer(cli_context_t *ctx)
         /* 引数の最大数に達していない場合は、argvの最後をNULLにする */
         ctx->args.argv[ctx->args.argc] = NULL;
     }
-
-    return ctx->args.argc;
 }
 
 /**
