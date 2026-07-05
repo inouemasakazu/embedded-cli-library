@@ -54,17 +54,16 @@
 /****************************************************************************************************
  * Private typedef
  ****************************************************************************************************/
+/**
+ * @brief 入力種別
+ */
 typedef enum
 {
-    /*** 入力タイプ ***/
-    CLI_INPUT_NONE,
-    CLI_INPUT_TEXT,
-    CLI_INPUT_ENTER,
-    CLI_INPUT_BACKSPACE,
-    CLI_INPUT_ESCAPE,
-    CLI_INPUT_DELETE,
-    CLI_INPUT_MAX
-} cli_input_type_t;
+    CLI_KIND_NONE = 0,
+    CLI_KIND_CL_EDITOR,
+    CLI_KIND_CMD_EXECUTE,
+    CLI_KIND_MAX
+} cli_kind_e;
 
 /****************************************************************************************************
  * Private Variables
@@ -74,8 +73,10 @@ typedef enum
  * Private Functions
  ****************************************************************************************************/
 
-static cli_input_type_t cli_check_input_type(char c);
-
+/**
+ * @brief 入力種別チェック
+ */
+static cli_kind_e cli_kind_check(char c);
 
 static int cli_execute_cmd(cli_context_t *ctx);
 static int cli_tokenizer(cli_context_t *ctx);
@@ -145,75 +146,85 @@ int cli_begin(cli_context_t *ctx, const char *message)
  */
 int cli_input_char(cli_context_t *ctx, char c)
 {
-    if (ctx == NULL) return -1;
+    int success = 0;
 
-    /* 文字データから入力タイプを取得 */
-    cli_input_type_t type = cli_check_input_type(c);
-
-    switch (type)
+    if (ctx == NULL)
     {
-    case CLI_INPUT_TEXT:
-    case CLI_INPUT_BACKSPACE:
-    case CLI_INPUT_ESCAPE:
-        /* Command Line編集 */
-        cli_editor(ctx, c);
-        break;
-
-    case CLI_INPUT_ENTER:
-        /* トークンに分割 */
-        if (0 < cli_tokenizer(ctx))
-        {
-            /* コマンド実行 */
-            cli_execute_cmd(ctx);
-        }
-
-        /* Command Line改行 */
-        cli_editor_new_line(ctx);
-        break;
-
-    default:
-        /* DO NOTHING */
-        break;
-    }
-
-    return 0;
-}
-
-/**
- * @name  cli_check_input_type
- * @brief 入力タイプの判定
- * @param c 入力文字
- * @return 入力タイプ
- */
-static cli_input_type_t cli_check_input_type(char c)
-{
-    cli_input_type_t type = CLI_INPUT_NONE;
-
-    if ((SPC <= c) && (c <= 0x7e))
-    {
-        /* 図形文字 */
-        type = CLI_INPUT_TEXT;
-    }
-    else if ((c == LF) || (c == CR))
-    {
-        /* 改行 or 復帰 */
-        type = CLI_INPUT_ENTER;
-    }
-    else if (c == BS)
-    {
-        /* バックスペース */
-        type = CLI_INPUT_BACKSPACE;
-    }
-    else if (c == ESC)
-    {
-        type = CLI_INPUT_ESCAPE;
+        success = -1;
     }
     else
     {
-        /* その他の制御文字等 */
+        cli_kind_e kind = cli_kind_check(c);
+
+        switch (kind)
+        {
+        case CLI_KIND_CL_EDITOR:
+            /* Command Lineの編集 */
+            cli_editor(ctx, c);
+            break;
+
+        case CLI_KIND_CMD_EXECUTE:
+            /* コマンドを実行 */
+            /* トークンに分割 */
+            if (0 < cli_tokenizer(ctx))
+            {
+                /* コマンド実行 */
+                cli_execute_cmd(ctx);
+            }
+
+            /* Command Line改行 */
+            cli_editor_new_line(ctx);
+            break;
+
+        case CLI_KIND_NONE:
+        default:
+            /* DO NOTHING */
+            break;
+        }
     }
 
-    return type;
+    return success;
+}
+
+/**
+ * @brief 入力種別チェック
+ * @param c 入力文字
+ * @return 入力種別
+ */
+static cli_kind_e cli_kind_check(char c)
+{
+    cli_kind_e kind = CLI_KIND_NONE;
+
+    /* 入力文字から処理種別を確定 */
+    if ((LF == c) || (CR == c))
+    {
+        /* Command Lineの確定 */
+        /* 入力済みのCommand Lineを確定しコマンド実行処理を行う */
+        kind = CLI_KIND_CMD_EXECUTE;
+    }
+    else if ((SPC <= c) && (c <= 0x7e)) {
+        /* 図形文字 */
+        /* Command Lineの編集 */
+        kind = CLI_KIND_CL_EDITOR;
+    }
+    else if (ESC  == c)
+    {
+        /* ESCシーケンスの開始文字 */
+        /* Command Lineの編集 */
+        kind = CLI_KIND_CL_EDITOR;
+    }
+    else if (BS  == c)
+    {
+        /* backスペース文字 */
+        /* Command Lineの編集 */
+        kind = CLI_KIND_CL_EDITOR;
+    }
+    else
+    {
+        /* DO NOTHING */
+    }
+
+    return kind;
 }
 
 /**
