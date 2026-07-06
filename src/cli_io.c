@@ -32,13 +32,12 @@
  ****************************************************************************************************/
 
 /**
- * @brief CLI用標準出力実行
- *        CLIに使用するコールバックの呼び出しを行う。
+ * @brief CLI用データ書き込みCB処理の実行
  * @param p 出力データのポインタ
  * @param s 出力データサイズ
  * @return 正常(0) / 失敗(-1) / CB未登録(1)
  */
-int cli_stdout(cli_context_t *ctx, const char *p, uint16_t s)
+int cli_io_write(cli_context_t *ctx, const char *p, uint16_t s)
 {
     int success = 0;
 
@@ -48,10 +47,10 @@ int cli_stdout(cli_context_t *ctx, const char *p, uint16_t s)
     }
     else
     {
-        if (ctx->stdout_cb)
+        if (ctx->io_write.cb)
         {
-            /* CLI用標準出力実行 */
-            success = ctx->stdout_cb(p, s);
+            /* 書き込みCB実行 */
+            success = ctx->io_write.cb(p, s);
         }
         else
         {
@@ -82,10 +81,10 @@ int cli_printf(cli_context_t *ctx, const char * format, ...)
     else
     {
         int s = 0;
-        int n = sizeof(ctx->write_buf);     /* 最大文字数(終端文字(\0)を含む) */
+        int n = sizeof(ctx->io_write.buf);     /* 最大文字数(終端文字(\0)を含む) */
 
         va_start(arg, format);
-        s = vsnprintf(ctx->write_buf, n, format, arg);
+        s = vsnprintf(ctx->io_write.buf, n, format, arg);
         va_end(arg);
 
         if (0 < s)
@@ -94,11 +93,11 @@ int cli_printf(cli_context_t *ctx, const char * format, ...)
             {
                 /* 出力用bufサイズをoverしているので切り詰める */
                 s = (n - 1);
-                ctx->write_buf[s] = '\0';
+                ctx->io_write.buf[s] = '\0';
             }
 
             /* 出力処理実行 */
-            success = cli_stdout(ctx, ctx->write_buf, ((uint16_t)s));
+            success = cli_io_write(ctx, ctx->io_write.buf, ((uint16_t)s));
             if (success == 0)
             {
                 /* 処理結果として出力byte数を返す */
@@ -132,11 +131,11 @@ int cli_putc(cli_context_t *ctx, char c)
     else
     {
         /* データ整形 */
-        ctx->write_buf[0] = c;
-        ctx->write_buf[1] = '\0';
+        ctx->io_write.buf[0] = c;
+        ctx->io_write.buf[1] = '\0';
 
         /* 出力処理実行 */
-        success = cli_stdout(ctx, ctx->write_buf, 1);
+        success = cli_io_write(ctx, ctx->io_write.buf, 1);
     }
 
     return success;

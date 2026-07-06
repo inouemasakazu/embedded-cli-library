@@ -38,12 +38,12 @@
 typedef int (*cmd_handler_t)(int argc, char **argv);
 
 /**
- * @brief CLI用標準出力のコールバック型
+ * @brief CLI用データ出力コールバック型
  * @param p 出力データのポインタ
  * @param s 出力データサイズ
  * @return 処理結果
  */
-typedef int (*stdout_cb_t)(const char *p, uint16_t s);
+typedef int (*io_write_cb_t)(const char *p, uint16_t s);
 
 typedef struct
 {
@@ -89,6 +89,12 @@ typedef struct
 
 typedef struct
 {
+    char buf[256];
+    io_write_cb_t cb;
+} cli_io_write_t;
+
+typedef struct
+{
     const char *prompt;
 
     /* コマンドライン管理データ */
@@ -98,10 +104,8 @@ typedef struct
     cli_cmd_entry_t cmd[CLI_CMD_ENTRY_MAX];
     cli_cmd_args_t args;
 
-    /* cli write callback */
-    char write_buf[CLI_LINE_SIZE * 2];    /* 書き込み用バッファ */
-
-    stdout_cb_t stdout_cb;
+    /* cli write structure */
+    cli_io_write_t io_write;
 } cli_context_t;
 
 /****************************************************************************************************
@@ -167,7 +171,7 @@ int cli_set_prompt(cli_context_t *ctx, const char *prompt);
  *        CLIモジュール内で使用する出力処理のコールバックを設定する。
  * @return 処理結果
  */
-int cli_set_stdout_cb(cli_context_t *ctx, stdout_cb_t stdout_cb);
+int cli_set_stdout_cb(cli_context_t *ctx, io_write_cb_t stdout_cb);
 
 
 #endif  /* __CLI_H__ */

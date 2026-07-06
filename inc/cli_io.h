@@ -33,13 +33,12 @@
  ****************************************************************************************************/
 
 /**
- * @brief CLI用標準出力実行
- *        
+ * @brief CLI用データ書き込みCB処理の実行
  * @param p 出力データのポインタ
  * @param s 出力データサイズ
- * @return 正常(0) / 失敗(-1)
+ * @return 正常(0) / 失敗(-1) / CB未登録(1)
  */
-int cli_stdout(cli_context_t *ctx, const char *p, uint16_t s);
+int cli_io_write(cli_context_t *ctx, const char *p, uint16_t s);
 
 /**
  * @brief CLI用書式付き文字列の標準出力

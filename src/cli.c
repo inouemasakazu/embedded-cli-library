@@ -501,11 +501,11 @@ int cli_set_prompt(cli_context_t *ctx, const char *prompt)
 }
 
 /**
- * @brief CLI用標準出力のコールバック設定
+ * @brief CLI用データ書き込みCB処理の登録
  *        CLIモジュール内で使用する出力処理のコールバックを設定する。
  * @return 処理結果
  */
-int cli_set_stdout_cb(cli_context_t *ctx, stdout_cb_t stdout_cb)
+int cli_set_stdout_cb(cli_context_t *ctx, io_write_cb_t write_cb)
 {
     int success = 0;
 
@@ -516,7 +516,7 @@ int cli_set_stdout_cb(cli_context_t *ctx, stdout_cb_t stdout_cb)
     else
     {
         /* CB登録 */
-        ctx->stdout_cb = stdout_cb;
+        ctx->io_write.cb = write_cb;
     }
 
     return success;
