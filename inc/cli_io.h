@@ -1,13 +1,13 @@
 /****************************************************************************************************
- * @file    cli_stdio.h
- * @brief   CLI標準入出力
+ * @file    cli_io.h
+ * @brief   CLI入出力機能
  * @details 外部公開するAPI、型定義、マクロを定義する。
  *
  * @author  Masakazu Inoue
  * @date    2026/06/28          新規作成
  ****************************************************************************************************/
-#ifndef __CLI_STDIO_H__
-#define __CLI_STDIO_H__
+#ifndef __CLI_IO_H__
+#define __CLI_IO_H__
 
 /****************************************************************************************************
  * Public include
@@ -58,4 +58,4 @@ int cli_printf(cli_context_t *ctx, const char *format, ...);
  */
 int cli_putc(cli_context_t *ctx, char c);
 
-#endif  /* __CLI_STDIO_H__ */
+#endif  /* __CLI_IO_H__ */

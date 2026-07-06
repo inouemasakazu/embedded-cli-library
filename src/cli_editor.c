@@ -12,7 +12,7 @@
  ****************************************************************************************************/
 #include "cli_editor.h"
 
-#include "../inc/cli_stdio.h"
+#include "../inc/cli_io.h"
 
 #include <stdio.h>
 #include <string.h>
