@@ -1,0 +1,86 @@
+<mxfile host="Electron" pages="2">
+  <diagram id="HJ0O3X1m_c9bokfIZHaI" name="システム構成図">
+    <mxGraphModel dx="975" dy="613" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="tWE1xTAn4uMuKcUfphET-4" edge="1" parent="1" source="asyd0yE0a8rgPVQrdmxs-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="tWE1xTAn4uMuKcUfphET-1" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="asyd0yE0a8rgPVQrdmxs-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#e1d5e7;strokeColor=#9673a6;arcSize=0;fontStyle=1" value="&lt;div style=&quot;&quot;&gt;Communication Interface&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="480" x="160" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="asyd0yE0a8rgPVQrdmxs-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=0;imageWidth=24;" value="&lt;div style=&quot;&quot;&gt;&lt;b&gt;CLI(Command Line Interface)ライブラリ&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="480" x="160" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="asyd0yE0a8rgPVQrdmxs-3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#ffe6cc;strokeColor=#d79b00;arcSize=0;" value="&lt;div style=&quot;&quot;&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;&lt;b&gt;ユーザー　アプリケーション&lt;/b&gt;&lt;/span&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="480" x="160" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="asyd0yE0a8rgPVQrdmxs-7" edge="1" parent="1" source="asyd0yE0a8rgPVQrdmxs-3" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="400" y="290" as="sourcePoint" />
+            <mxPoint x="399.65999999999997" y="320" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="asyd0yE0a8rgPVQrdmxs-8" connectable="0" parent="asyd0yE0a8rgPVQrdmxs-7" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" value="Input API or Output API" vertex="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="asyd0yE0a8rgPVQrdmxs-9" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="400" y="360" as="sourcePoint" />
+            <mxPoint x="399.71" y="400" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="asyd0yE0a8rgPVQrdmxs-10" connectable="0" parent="asyd0yE0a8rgPVQrdmxs-9" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" value="Output Interface" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="tWE1xTAn4uMuKcUfphET-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#eeeeee;strokeColor=#36393d;arcSize=0;" value="&lt;div style=&quot;&quot;&gt;&lt;span style=&quot;background-color: transparent;&quot;&gt;&lt;b&gt;Device Driver&lt;br&gt;&lt;/b&gt;&lt;/span&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="480" x="160" y="460" as="geometry" />
+        </mxCell>
+        <mxCell id="tWE1xTAn4uMuKcUfphET-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#bac8d3;strokeColor=#23445d;arcSize=0;" value="&lt;div style=&quot;&quot;&gt;&lt;span style=&quot;background-color: transparent;&quot;&gt;&lt;b&gt;Peripheral&lt;/b&gt;&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;span style=&quot;background-color: transparent;&quot;&gt;&lt;b&gt;(MCU A&lt;/b&gt;&lt;/span&gt;&lt;span style=&quot;background-color: transparent;&quot;&gt;&lt;b&gt;ccess&lt;/b&gt;&lt;/span&gt;&lt;b style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;)&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="480" x="160" y="500" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="ソフトウェア構成図" id="z6hT402JUclgmsElbEDk">
+    <mxGraphModel dx="975" dy="613" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="574bRxrIupVms-uaiGKR-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=5;imageWidth=24;" value="&lt;div style=&quot;&quot;&gt;&lt;b&gt;CLI(Command Line Interface)ライブラリ&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="190" width="360" x="280" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="ZmDUIyXcdrsYOrMIiakH-3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=5;fontStyle=1;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Command" vertex="1">
+          <mxGeometry height="150" width="160" x="290" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="ZmDUIyXcdrsYOrMIiakH-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=5;fontStyle=1;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Output" vertex="1">
+          <mxGeometry height="150" width="160" x="470" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="LW1XVTxqP8prgBJpbL4c-1" edge="1" parent="1" source="574bRxrIupVms-uaiGKR-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="ZmDUIyXcdrsYOrMIiakH-1" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="574bRxrIupVms-uaiGKR-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=18;" value="Command Line Edhitor" vertex="1">
+          <mxGeometry height="30" width="140" x="300" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="LW1XVTxqP8prgBJpbL4c-2" edge="1" parent="1" source="ZmDUIyXcdrsYOrMIiakH-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="ZmDUIyXcdrsYOrMIiakH-2" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ZmDUIyXcdrsYOrMIiakH-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=18;" value="Command Executor" vertex="1">
+          <mxGeometry height="30" width="140" x="300" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="ZmDUIyXcdrsYOrMIiakH-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=18;" value="Output Interface" vertex="1">
+          <mxGeometry height="30" width="140" x="480" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="kpk4TMvsxRhsV4Lrebpv-2" edge="1" parent="1" source="kpk4TMvsxRhsV4Lrebpv-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="ZmDUIyXcdrsYOrMIiakH-2" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="kpk4TMvsxRhsV4Lrebpv-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=18;" value="Formatter" vertex="1">
+          <mxGeometry height="30" width="140" x="480" y="270" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
