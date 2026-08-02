@@ -93,13 +93,14 @@ static int cli_cmd_find(cli_private_t *priv, const char *name, bool is_used);
 /**
  * @brief CLI初期化
  * @param ctx CLIの状態データを保持するメモリ領域
+ * @param cfg 設定データ
  * @return 処理結果
  */
-int cli_init(cli_context_t *ctx)
+int cli_init(cli_context_t *ctx, const cli_config_t *cfg)
 {
     int success = 0;
 
-    if (ctx == NULL)
+    if ((ctx == NULL) || (cfg == NULL))
     {
         success = -1;
     }
@@ -108,10 +109,11 @@ int cli_init(cli_context_t *ctx)
         cli_private_t *priv = get_priv(ctx);
 
         /* メモリ0クリア */
-        memset(priv, 0, sizeof(cli_private_t));
+        memset(priv, 0, sizeof(*priv));
 
-        /* デフォルトのプロンプト('>')を設定 */
-        priv->prompt = ">";
+        /* 設定データを反映 */
+        cli_set_prompt(ctx, cfg->prompt);
+        cli_set_stdout_cb(ctx, cfg->io_write_cb);
     }
 
     return success;

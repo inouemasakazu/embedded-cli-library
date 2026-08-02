@@ -61,9 +61,10 @@ typedef struct
 /**
  * @brief CLI初期化
  * @param ctx CLIの状態データを保持するメモリ領域
+ * @param cfg 設定データ
  * @return 処理結果
  */
-int cli_init(cli_context_t *ctx);
+int cli_init(cli_context_t *ctx, const cli_config_t *cfg);
 
 /**
  * @brief CLI開始
