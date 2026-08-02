@@ -13,17 +13,10 @@
  * Public include
  ****************************************************************************************************/
 #include <stdint.h>
-#include <stdbool.h>
 
 /****************************************************************************************************
  * Public define
  ****************************************************************************************************/
-#define CLI_LINE_SIZE      128      /* 128byte buf */
-
-#define CLI_CMD_NAME_SIZE   32      /* 32byte cmd name */
-
-#define CLI_CMD_ENTRY_MAX   10
-#define CLI_CMD_ARGS_MAX     8
 
 /****************************************************************************************************
  * Public typedef
@@ -47,65 +40,7 @@ typedef int (*io_write_cb_t)(const char *p, uint16_t s);
 
 typedef struct
 {
-    char name[CLI_CMD_NAME_SIZE];
-    cmd_handler_t handler;
-    bool is_used;
-} cli_cmd_entry_t;
-
-typedef struct
-{
-    int argc;
-    char *argv[CLI_CMD_ARGS_MAX];
-} cli_cmd_args_t;
-
-typedef struct
-{
-    char buf[CLI_LINE_SIZE];
-    uint8_t size;
-} cli_line_t;
-
-typedef struct
-{
-    uint8_t x;
-    uint8_t y;
-} cli_cursor_t;
-
-typedef struct
-{
-    bool sequence;
-    char buf[8];
-    uint8_t size;
-} cli_escape_t;
-
-
-typedef struct
-{
-    cli_line_t current;
-    cli_line_t history[5];
-
-    cli_cursor_t cursor;
-    cli_escape_t escape;
-} cli_cmd_line_t;
-
-typedef struct
-{
-    char buf[256];
-    io_write_cb_t cb;
-} cli_io_write_t;
-
-typedef struct
-{
-    const char *prompt;
-
-    /* コマンドライン管理データ */
-    cli_cmd_line_t cmd_line;
-
-    /* cli cmd structure */
-    cli_cmd_entry_t cmd[CLI_CMD_ENTRY_MAX];
-    cli_cmd_args_t args;
-
-    /* cli write structure */
-    cli_io_write_t io_write;
+    uint32_t opaque[1536];
 } cli_context_t;
 
 /****************************************************************************************************

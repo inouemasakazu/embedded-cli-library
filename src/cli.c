@@ -29,6 +29,8 @@
 #include "../inc/cli.h"
 #include "../inc/cli_io.h"
 
+#include "cli_private.h"
+
 #include "cli_editor.h"
 
 #include <stdio.h>
@@ -81,12 +83,12 @@ static cli_kind_e cli_kind_check(char c);
 /**
  * @brief コマンド実行処理
  */
-static void cli_cmd_execute(cli_context_t *ctx);
+static void cli_cmd_execute(cli_private_t *priv);
 
-static void cli_tokenizer(cli_context_t *ctx);
-static int cli_dispatch(cli_context_t *ctx);
+static void cli_tokenizer(cli_private_t *priv);
+static int cli_dispatch(cli_private_t *priv);
 
-static int cli_cmd_find(cli_context_t *ctx, const char *name, bool is_used);
+static int cli_cmd_find(cli_private_t *priv, const char *name, bool is_used);
 
 /**
  * @brief CLI初期化
@@ -103,11 +105,13 @@ int cli_init(cli_context_t *ctx)
     }
     else
     {
+        cli_private_t *priv = get_priv(ctx);
+
         /* メモリ0クリア */
-        memset(ctx, 0, sizeof(cli_context_t));
+        memset(priv, 0, sizeof(cli_private_t));
 
         /* デフォルトのプロンプト('>')を設定 */
-        ctx->prompt = ">";
+        priv->prompt = ">";
     }
 
     return success;
@@ -129,6 +133,8 @@ int cli_begin(cli_context_t *ctx, const char *message)
     }
     else
     {
+        cli_private_t *priv = get_priv(ctx);
+
         if ((message != NULL) || (*message != '\0'))
         {
             /* 開始を通知するメッセージを表示 */
@@ -136,7 +142,7 @@ int cli_begin(cli_context_t *ctx, const char *message)
         }
 
         /* プロンプトを表示 */
-        cli_printf(ctx, "\r\n%s", ctx->prompt);
+        cli_printf(ctx, "\r\n%s", priv->prompt);
     }
 
     return success;
@@ -158,18 +164,20 @@ int cli_input_char(cli_context_t *ctx, char c)
     }
     else
     {
+        cli_private_t *priv = get_priv(ctx);
+
         cli_kind_e kind = cli_kind_check(c);
 
         switch (kind)
         {
         case CLI_KIND_CL_EDITOR:
             /* Command Lineの編集 */
-            cli_editor(ctx, c);
+            cli_editor(priv, c);
             break;
 
         case CLI_KIND_CMD_EXECUTE:
             /* コマンド実行 */
-            cli_cmd_execute(ctx);
+            cli_cmd_execute(priv);
             break;
 
         case CLI_KIND_NONE:
@@ -226,23 +234,25 @@ static cli_kind_e cli_kind_check(char c)
 /**
  * @brief コマンド実行処理
  */
-static void cli_cmd_execute(cli_context_t *ctx)
+static void cli_cmd_execute(cli_private_t *priv)
 {
     CLI_ASSERT(ctx != NULL);
 
     /* Command Lineをトークンに分割 */
-    cli_tokenizer(ctx);
+    cli_tokenizer(priv);
 
-    if (0 < ctx->args.argc)
+    if (0 < priv->args.argc)
     {
+        cli_context_t *ctx = get_public(priv);
+
         /* コマンドのディスパッチ */
-        int success = cli_dispatch(ctx);
+        int success = cli_dispatch(priv);
 
         /* コマンドの実行結果に応じてメッセージを描画 */
         if (success == 1)
         {
             /* 該当コマンドなし */
-            cli_printf(ctx, "\r\nError: '%s' command not found\r\n", ctx->args.argv[0]);
+            cli_printf(ctx, "\r\nError: '%s' command not found\r\n", priv->args.argv[0]);
         }
         else if (success == -1)
         {
@@ -260,7 +270,7 @@ static void cli_cmd_execute(cli_context_t *ctx)
     }
 
     /* Command Line改行 */
-    cli_editor_new_line(ctx);
+    cli_editor_new_line(priv);
 }
 
 /**
@@ -270,20 +280,20 @@ static void cli_cmd_execute(cli_context_t *ctx)
  * @note 引数の最大数はCLI_ARGV_SIZEで定義されている値まで。引数の最大数を超える場合は切り詰める。
  *       引数の最大数に達していない場合は、argvの最後をNULLにする。
  */
-static void cli_tokenizer(cli_context_t *ctx)
+static void cli_tokenizer(cli_private_t *priv)
 {
-    char *token = ctx->cmd_line.current.buf;
+    char *token = priv->cmd_line.current.buf;
 
-    ctx->args.argc = 0;
-    memset(ctx->args.argv, '\0', sizeof(ctx->args.argv));
+    priv->args.argc = 0;
+    memset(priv->args.argv, '\0', sizeof(priv->args.argv));
 
     /* コマンドラインをスペース区切りでトークンに分割 */
-    while ((*token != '\0') && (ctx->args.argc < CLI_CMD_ARGS_MAX))
+    while ((*token != '\0') && (priv->args.argc < CLI_CMD_ARGS_MAX))
     {
         while (*token == ' ') token++;
 
-        ctx->args.argv[ctx->args.argc] = token;
-        ctx->args.argc++;
+        priv->args.argv[priv->args.argc] = token;
+        priv->args.argc++;
 
         while ((*token != ' ') && (*token != '\0'))
         {
@@ -299,10 +309,10 @@ static void cli_tokenizer(cli_context_t *ctx)
         token++;
     }
 
-    if (ctx->args.argc < CLI_CMD_ARGS_MAX)
+    if (priv->args.argc < CLI_CMD_ARGS_MAX)
     {
         /* 引数の最大数に達していない場合は、argvの最後をNULLにする */
-        ctx->args.argv[ctx->args.argc] = NULL;
+        priv->args.argv[priv->args.argc] = NULL;
     }
 }
 
@@ -314,27 +324,27 @@ static void cli_tokenizer(cli_context_t *ctx)
  * @note コマンドなしは、コマンドテーブルにコマンドが登録されていない場合を示す。
  *       コマンドなしとコマンド実行エラーは異なる値で返す。
  */
-static int cli_dispatch(cli_context_t *ctx)
+static int cli_dispatch(cli_private_t *priv)
 {
     int result = -1;
 
     CLI_ASSERT(ctx != NULL);
 
-    if (ctx->args.argc <= 0)
+    if (priv->args.argc <= 0)
     {
         result = 2;   /* トークンなし */
     }
     else
     {
         /* コマンドを探す */
-        int index = cli_cmd_find(ctx, ctx->args.argv[0], true);
+        int index = cli_cmd_find(priv, priv->args.argv[0], true);
         if (index >= 0)
         {
             /* コマンドあり */
-            if (ctx->cmd[index].handler != CLI_CMD_NULL)
+            if (priv->cmd[index].handler != CLI_CMD_NULL)
             {
                 /* コマンド関数がNULLでない場合は、コマンド実行 */
-                result = ctx->cmd[index].handler(ctx->args.argc, ctx->args.argv);
+                result = priv->cmd[index].handler(priv->args.argc, priv->args.argv);
             }
             else
             {
@@ -362,7 +372,9 @@ int cli_cmd_register(cli_context_t *ctx, const char *name, cmd_handler_t handler
 
     if ((ctx == NULL) || (name == NULL) || (handler == NULL)) return result;
 
-    int index = cli_cmd_find(ctx, name, true);
+    cli_private_t *priv = get_priv(ctx);
+
+    int index = cli_cmd_find(priv, name, true);
 
     if (index >= 0)
     {
@@ -372,13 +384,13 @@ int cli_cmd_register(cli_context_t *ctx, const char *name, cmd_handler_t handler
     else
     {
         /* 空きを探す */
-        index = cli_cmd_find(ctx, name, false);
+        index = cli_cmd_find(priv, name, false);
         if (index >= 0)
         {
             /* コマンド登録 */
-            snprintf(&ctx->cmd[index].name[0], sizeof(ctx->cmd[index].name), "%s", name);
-            ctx->cmd[index].handler = handler;
-            ctx->cmd[index].is_used = true;
+            snprintf(&priv->cmd[index].name[0], sizeof(priv->cmd[index].name), "%s", name);
+            priv->cmd[index].handler = handler;
+            priv->cmd[index].is_used = true;
     
             result = 0;     /* 登録成功 */
         }
@@ -401,15 +413,17 @@ int cli_cmd_unregister(cli_context_t *ctx, const char *name)
     int result = -1;
 
     if ((ctx == NULL) || (name == NULL)) return result;
-    
-    int index = cli_cmd_find(ctx, name, true);
+
+    cli_private_t *priv = get_priv(ctx);
+
+    int index = cli_cmd_find(priv, name, true);
 
     if (index >= 0)
     {
         /* コマンド削除 */
-        memset(&ctx->cmd[index].name[0], '\0', sizeof(ctx->cmd[index].name));
-        ctx->cmd[index].handler = CLI_CMD_NULL;
-        ctx->cmd[index].is_used = false;
+        memset(&priv->cmd[index].name[0], '\0', sizeof(priv->cmd[index].name));
+        priv->cmd[index].handler = CLI_CMD_NULL;
+        priv->cmd[index].is_used = false;
 
         result = 0;
     }
@@ -428,7 +442,7 @@ int cli_cmd_unregister(cli_context_t *ctx, const char *name)
  * @param is_used 登録されているコマンドを探す場合はtrue、空きを探す場合はfalse
  * @return コマンドテーブルのインデックス(0～) / 見つからなかった(-1)
  */
-static int cli_cmd_find(cli_context_t *ctx, const char *name, bool is_used)
+static int cli_cmd_find(cli_private_t *priv, const char *name, bool is_used)
 {
     int index = -1;
 
@@ -441,7 +455,7 @@ static int cli_cmd_find(cli_context_t *ctx, const char *name, bool is_used)
         if (is_used == true)
         {
             /* 登録されているコマンドを探す場合は、同名のコマンドが登録されているかを探す */
-            if ((ctx->cmd[i].is_used == true) && (strcmp(name, ctx->cmd[i].name) == 0))
+            if ((priv->cmd[i].is_used == true) && (strcmp(name, priv->cmd[i].name) == 0))
             {
                 /* コマンドあり */
                 is_find = true;
@@ -451,7 +465,7 @@ static int cli_cmd_find(cli_context_t *ctx, const char *name, bool is_used)
         else
         {
             /* 空きを探す場合は、同名のコマンドが登録されていないかを探す */
-            if ((ctx->cmd[i].is_used == false) && (strcmp(name, ctx->cmd[i].name) != 0))
+            if ((priv->cmd[i].is_used == false) && (strcmp(name, priv->cmd[i].name) != 0))
             {
                 /* 空きあり */
                 is_find = true;
@@ -484,16 +498,18 @@ int cli_set_prompt(cli_context_t *ctx, const char *prompt)
     }
     else
     {
+        cli_private_t *priv = get_priv(ctx);
+
         /* プロンプトの設定内容を更新 */
         if (prompt == NULL)
         {
             /* デフォルトのプロンプト('>')を設定 */
-            ctx->prompt = ">";
+            priv->prompt = ">";
         }
         else
         {
             /* 任意のプロンプトを設定 */
-            ctx->prompt = prompt;
+            priv->prompt = prompt;
         }
     }
 
@@ -515,8 +531,10 @@ int cli_set_stdout_cb(cli_context_t *ctx, io_write_cb_t write_cb)
     }
     else
     {
+        cli_private_t *priv = get_priv(ctx);
+
         /* CB登録 */
-        ctx->io_write.cb = write_cb;
+        priv->io_write.cb = write_cb;
     }
 
     return success;

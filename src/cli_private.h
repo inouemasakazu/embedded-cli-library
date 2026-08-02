@@ -1,0 +1,141 @@
+/****************************************************************************************************
+ * @file    cli_private.h
+ * @brief   非公開定義
+ * @details 外部公開しないAPI、型定義、マクロを定義する。
+ *
+ * @author  Masakazu Inoue
+ * @date    2026/08/02     新規作成
+ ****************************************************************************************************/
+#ifndef __CLI_PRIVATE_H__
+#define __CLI_PRIVATE_H__
+
+/****************************************************************************************************
+ * Public include
+ ****************************************************************************************************/
+#include "../inc/cli.h"
+
+#include <stdint.h>
+#include <stdbool.h>
+
+/****************************************************************************************************
+ * Public define
+ ****************************************************************************************************/
+#define CLI_LINE_SIZE      128      /* 128byte buf */
+
+#define CLI_CMD_NAME_SIZE   32      /* 32byte cmd name */
+
+#define CLI_CMD_ENTRY_MAX   10
+#define CLI_CMD_ARGS_MAX     8
+
+/****************************************************************************************************
+ * Public typedef
+ ****************************************************************************************************/
+
+typedef struct
+{
+    char name[CLI_CMD_NAME_SIZE];
+    cmd_handler_t handler;
+    bool is_used;
+} cli_cmd_entry_t;
+
+typedef struct
+{
+    int argc;
+    char *argv[CLI_CMD_ARGS_MAX];
+} cli_cmd_args_t;
+
+typedef struct
+{
+    char buf[CLI_LINE_SIZE];
+    uint8_t size;
+} cli_line_t;
+
+typedef struct
+{
+    uint8_t x;
+    uint8_t y;
+} cli_cursor_t;
+
+typedef struct
+{
+    bool sequence;
+    char buf[8];
+    uint8_t size;
+} cli_escape_t;
+
+
+typedef struct
+{
+    cli_line_t current;
+    cli_line_t history[5];
+
+    cli_cursor_t cursor;
+    cli_escape_t escape;
+} cli_cmd_line_t;
+
+typedef struct
+{
+    char buf[256];
+    io_write_cb_t cb;
+} cli_io_write_t;
+
+typedef struct
+{
+    const char *prompt;
+
+    /* コマンドライン管理データ */
+    cli_cmd_line_t cmd_line;
+
+    /* cli cmd structure */
+    cli_cmd_entry_t cmd[CLI_CMD_ENTRY_MAX];
+    cli_cmd_args_t args;
+
+    /* cli write structure */
+    cli_io_write_t io_write;
+} cli_private_t;
+
+/****************************************************************************************************
+ * Public Variables
+ ****************************************************************************************************/
+
+/****************************************************************************************************
+ * Public Functions
+ ****************************************************************************************************/
+
+/**
+ * @brief 型変換処理
+ * @param ctx CLIの状態データを保持するメモリ領域
+ * @return 非公開型に変換したポインタ
+ */
+static inline cli_context_t *get_public(cli_private_t *priv)
+{
+    void *vp = priv;
+
+    return (cli_context_t *)vp;
+}
+
+/**
+ * @brief 型変換処理
+ * @param ctx CLIの状態データを保持するメモリ領域
+ * @return 非公開型に変換したポインタ
+ */
+static inline cli_private_t *get_priv(cli_context_t *ctx)
+{
+    void *vp = ctx->opaque;
+
+    return (cli_private_t *)vp;
+}
+
+/**
+ * @brief 型変換処理(読み取り専用)
+ * @param ctx CLIの状態データを保持するメモリ領域
+ * @return 非公開型に変換したポインタ
+ */
+static inline const cli_private_t *get_priv_const(cli_context_t *ctx)
+{
+    const void *vp = ctx->opaque;
+
+    return (const cli_private_t *)vp;
+}
+
+#endif  /* __CLI_PRIVATE_H__ */

@@ -14,6 +14,8 @@
  ****************************************************************************************************/
 #include "../inc/cli.h"
 
+#include "cli_private.h"
+
 /****************************************************************************************************
  * Public define
  ****************************************************************************************************/
@@ -47,13 +49,13 @@
  * @param ctx CLIの状態データを保持するメモリ領域
  * @param c 入力文字(制御データ含む)
  */
-void cli_editor(cli_context_t *ctx, char c);
+void cli_editor(cli_private_t *priv, char c);
 
 /**
  * @brief Command Line改行
  * @param ctx CLIの状態データを保持するメモリ領域
  */
-void cli_editor_new_line(cli_context_t *ctx);
+void cli_editor_new_line(cli_private_t *priv);
 
 
 #endif  /* __CLI_EDIOTR_H__ */
