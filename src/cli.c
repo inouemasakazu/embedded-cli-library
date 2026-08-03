@@ -74,6 +74,7 @@ typedef enum
 /****************************************************************************************************
  * Private Functions
  ****************************************************************************************************/
+static int cli_workspace_memory_layout(cli_private_t *priv, const cli_config_t *cfg, void *workspace, size_t size);
 
 /**
  * @brief 入力種別チェック
@@ -94,29 +95,80 @@ static int cli_cmd_find(cli_private_t *priv, const char *name, bool is_used);
  * @brief CLI初期化
  * @param ctx CLIの状態データを保持するメモリ領域
  * @param cfg 設定データ
+ * @param workspace workspaceメモリ
+ * @param size workspaceのサイズ
  * @return 処理結果
  */
-int cli_init(cli_context_t *ctx, const cli_config_t *cfg)
+int cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace, size_t size)
 {
+    if ((ctx == NULL) || (cfg == NULL) || (workspace == NULL))
+    {
+        return -1;
+    }
+
+    cli_private_t *priv = get_priv(ctx);
+
     int success = 0;
 
-    if ((ctx == NULL) || (cfg == NULL))
-    {
-        success = -1;
-    }
-    else
-    {
-        cli_private_t *priv = get_priv(ctx);
+    /* メモリ0クリア */
+    memset(priv, 0, sizeof(*priv));
 
-        /* メモリ0クリア */
-        memset(priv, 0, sizeof(*priv));
-
+    success = cli_workspace_memory_layout(priv, cfg, workspace, size);
+    if (success == 0)
+    {
         /* 設定データを反映 */
         cli_set_prompt(ctx, cfg->prompt);
         cli_set_stdout_cb(ctx, cfg->io_write_cb);
     }
 
     return success;
+}
+
+/**
+ * @brief ワークスペースのメモリレイアウト
+ */
+int cli_workspace_memory_layout(cli_private_t *priv, const cli_config_t *cfg, void *workspace, size_t size)
+{
+    uint32_t total = 0;
+
+    /* 設定データからCLIが使用するワーキングメモリーの必要byte数を算出 */
+    total = cfg->max_line_size;
+    total = total + cfg->max_output_size;
+    total = total + (cfg->depth_argv * sizeof(char *));
+
+    if (0 == size)
+    {
+        /* workspaceのサイズがない */
+        return -1;
+    }
+    else if (total > size)
+    {
+        /* workspaceのサイズが不足 */
+        return -2;
+    }
+    else
+    {
+        /* DO NOTHING */
+    }
+
+    uint32_t offset = 0;
+
+    memset(workspace, 0x00, size);
+
+    priv->text.line = workspace;
+    priv->text.max_size = cfg->max_line_size;
+
+    offset = cfg->max_line_size;
+
+    priv->output.buf = (workspace + offset);
+    priv->output.max_size = cfg->max_output_size;
+
+    offset = offset + cfg->max_output_size;
+
+    priv->argument.vector = (char **)(workspace + offset);
+    priv->argument.max_size = (cfg->depth_argv * sizeof(char *));
+
+    return 0;
 }
 
 /**
@@ -243,7 +295,7 @@ static void cli_cmd_execute(cli_private_t *priv)
     /* Command Lineをトークンに分割 */
     cli_tokenizer(priv);
 
-    if (0 < priv->args.argc)
+    if (0 < priv->argument.count)
     {
         cli_context_t *ctx = get_public(priv);
 
@@ -254,7 +306,7 @@ static void cli_cmd_execute(cli_private_t *priv)
         if (success == 1)
         {
             /* 該当コマンドなし */
-            cli_printf(ctx, "\r\nError: '%s' command not found\r\n", priv->args.argv[0]);
+            cli_printf(ctx, "\r\nError: '%s' command not found\r\n", priv->argument.vector[0]);
         }
         else if (success == -1)
         {
@@ -284,18 +336,20 @@ static void cli_cmd_execute(cli_private_t *priv)
  */
 static void cli_tokenizer(cli_private_t *priv)
 {
-    char *token = priv->cmd_line.current.buf;
+    char *token = (char *)priv->text.line;
+    uint32_t max_count = 0;
 
-    priv->args.argc = 0;
-    memset(priv->args.argv, '\0', sizeof(priv->args.argv));
+    priv->argument.count = 0;
+    memset(priv->argument.vector, 0x00, priv->argument.max_size);
+
+    max_count = (priv->argument.max_size / sizeof(char *));
 
     /* コマンドラインをスペース区切りでトークンに分割 */
-    while ((*token != '\0') && (priv->args.argc < CLI_CMD_ARGS_MAX))
+    while ((*token != '\0') && (priv->argument.count < max_count))
     {
         while (*token == ' ') token++;
 
-        priv->args.argv[priv->args.argc] = token;
-        priv->args.argc++;
+        priv->argument.vector[priv->argument.count++] = token;
 
         while ((*token != ' ') && (*token != '\0'))
         {
@@ -311,10 +365,10 @@ static void cli_tokenizer(cli_private_t *priv)
         token++;
     }
 
-    if (priv->args.argc < CLI_CMD_ARGS_MAX)
+    if (priv->argument.count < max_count)
     {
         /* 引数の最大数に達していない場合は、argvの最後をNULLにする */
-        priv->args.argv[priv->args.argc] = NULL;
+        priv->argument.vector[priv->argument.count] = NULL;
     }
 }
 
@@ -332,21 +386,21 @@ static int cli_dispatch(cli_private_t *priv)
 
     CLI_ASSERT(ctx != NULL);
 
-    if (priv->args.argc <= 0)
+    if (priv->argument.count <= 0)
     {
         result = 2;   /* トークンなし */
     }
     else
     {
         /* コマンドを探す */
-        int index = cli_cmd_find(priv, priv->args.argv[0], true);
+        int index = cli_cmd_find(priv, priv->argument.vector[0], true);
         if (index >= 0)
         {
             /* コマンドあり */
             if (priv->cmd[index].handler != CLI_CMD_NULL)
             {
                 /* コマンド関数がNULLでない場合は、コマンド実行 */
-                result = priv->cmd[index].handler(priv->args.argc, priv->args.argv);
+                result = priv->cmd[index].handler(priv->argument.count, priv->argument.vector);
             }
             else
             {
@@ -536,7 +590,7 @@ int cli_set_stdout_cb(cli_context_t *ctx, io_write_cb_t write_cb)
         cli_private_t *priv = get_priv(ctx);
 
         /* CB登録 */
-        priv->io_write.cb = write_cb;
+        priv->io_write_cb = write_cb;
     }
 
     return success;

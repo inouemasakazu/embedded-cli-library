@@ -51,7 +51,7 @@ void cli_editor(cli_private_t *priv, char c)
     char temp[128] = {'\0'};
     uint8_t size = 0;
 
-    if (priv->cmd_line.escape.sequence)
+    if (priv->escape.sequence)
     {
         /* ESCシーケンスキーの入力 */
         cli_escape_input(priv, c);
@@ -59,26 +59,26 @@ void cli_editor(cli_private_t *priv, char c)
     else if (ESC == c)
     {
         /* ESCシーケンスの入力 */
-        priv->cmd_line.escape.sequence = true;
-        priv->cmd_line.escape.buf[0] = '\0';
-        priv->cmd_line.escape.size   = 0;
+        priv->escape.sequence = true;
+        priv->escape.buf[0] = '\0';
+        priv->escape.size   = 0;
     }
     else
     {
         /* キャラクタの入力 */
-        if (priv->cmd_line.current.size <= priv->cmd_line.cursor.y)
+        if (priv->text.size <= priv->cursor)
         {
             /* 入力データサイズがカーソル位置より小さい */
             if ((SPC <= c) && (c <= 0x7e))
             {
                 /* 図形文字(空白含む) */
-                if (priv->cmd_line.current.size < (CLI_LINE_SIZE - 1))
+                if (priv->text.size < (priv->text.max_size - 1))
                 {
-                    priv->cmd_line.current.buf[priv->cmd_line.current.size    ] = c;
-                    priv->cmd_line.current.buf[priv->cmd_line.current.size + 1] = '\0';         /* バッファ終端にNULL文字を挿入 */
-                    priv->cmd_line.current.size++;
+                    priv->text.line[priv->text.size    ] = c;
+                    priv->text.line[priv->text.size + 1] = '\0';         /* バッファ終端にNULL文字を挿入 */
+                    priv->text.size++;
 
-                    priv->cmd_line.cursor.y++;
+                    priv->cursor++;
                 }
 
                 cli_printf(ctx, "%c", c);        /* バッファフローしていてもエコーバックは行う */
@@ -86,12 +86,12 @@ void cli_editor(cli_private_t *priv, char c)
             else if (BS == c)
             {
                 /* バックスペース */
-                if (0 < priv->cmd_line.current.size)
+                if (0 < priv->text.size)
                 {
-                    priv->cmd_line.current.size--;
-                    priv->cmd_line.current.buf[priv->cmd_line.current.size] = '\0';
+                    priv->text.size--;
+                    priv->text.line[priv->text.size] = '\0';
 
-                    priv->cmd_line.cursor.y--;
+                    priv->cursor--;
 
                     cli_printf(ctx, "%c", BS );
                     cli_printf(ctx, "%c", SPC);
@@ -109,18 +109,18 @@ void cli_editor(cli_private_t *priv, char c)
             if ((SPC <= c) && (c <= 0x7e))
             {
                 /* 現在のカーソル位置から後ろの文字列を一時bufに退避 */
-                memccpy(&temp[0], &priv->cmd_line.current.buf[priv->cmd_line.cursor.y], '\0', 128);
+                memccpy(&temp[0], &priv->text.line[priv->cursor], '\0', priv->text.size);
 
                 /* 現在のカーソル位置に文字を挿入 */
-                priv->cmd_line.current.buf[priv->cmd_line.cursor.y    ] = c;
-                priv->cmd_line.current.buf[priv->cmd_line.cursor.y + 1] = '\0';
-                priv->cmd_line.cursor.y++;
+                priv->text.line[priv->cursor    ] = c;
+                priv->text.line[priv->cursor + 1] = '\0';
+                priv->cursor++;
 
                 /* 一時bufに退避した文字列を最新のカーソル位置に挿入 */
-                memccpy(&priv->cmd_line.current.buf[priv->cmd_line.cursor.y], &temp[0], '\0', 128);
+                memccpy(&priv->text.line[priv->cursor], &temp[0], '\0', priv->text.size);
 
                 /* データサイズ更新 */
-                priv->cmd_line.current.size++;
+                priv->text.size++;
 
                 /* プロンプトの文字列サイズを取得 */
                 size = (uint8_t)strlen(priv->prompt);
@@ -128,27 +128,27 @@ void cli_editor(cli_private_t *priv, char c)
                 /* カーソルのある行を1行ごと再描画 */
                 cli_printf(ctx, "\033[2K");                                 /* カーソルが存在する１行を消去 */
                 cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
-                cli_printf(ctx, ">%s", &priv->cmd_line.current.buf[0]);      /* 1行ごと再描画 */
+                cli_printf(ctx, ">%s", &priv->text.line[0]);      /* 1行ごと再描画 */
                 cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
-                cli_printf(ctx, "\e[%dC", priv->cmd_line.cursor.y + size);   /* 現在のカーソル位置に移動 */
+                cli_printf(ctx, "\e[%dC", priv->cursor + size);   /* 現在のカーソル位置に移動 */
             }
             else if (BS == c)
             {
                 /* バックスペース */
-                if ((0 < priv->cmd_line.current.size) && (0 < priv->cmd_line.cursor.y))
+                if ((0 < priv->text.size) && (0 < priv->cursor))
                 {
                     /* 現在のカーソル位置から後ろの文字列を一時bufに退避 */
-                    memccpy(&temp[0], &priv->cmd_line.current.buf[priv->cmd_line.cursor.y], '\0', 128);
+                    memccpy(&temp[0], &priv->text.line[priv->cursor], '\0', priv->text.size);
 
                     /* 現在のカーソル位置に存在する文字を削除 */
-                    priv->cmd_line.cursor.y--;
-                    priv->cmd_line.current.buf[priv->cmd_line.cursor.y] = '\0';
+                    priv->cursor--;
+                    priv->text.line[priv->cursor] = '\0';
 
                     /* 一時bufに退避した文字列を最新のカーソル位置に挿入 */
-                    memccpy(&priv->cmd_line.current.buf[priv->cmd_line.cursor.y], &temp[0], '\0', 128);
+                    memccpy(&priv->text.line[priv->cursor], &temp[0], '\0', priv->text.size);
 
                     /* データサイズ更新 */
-                    priv->cmd_line.current.size--;
+                    priv->text.size--;
 
                     /* プロンプトの文字列サイズを取得 */
                     size = (uint8_t)strlen(priv->prompt);
@@ -156,9 +156,9 @@ void cli_editor(cli_private_t *priv, char c)
                     /* カーソルのある行を1行ごと再描画 */
                     cli_printf(ctx, "\033[2K");                                 /* カーソルが存在する１行を消去 */
                     cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
-                    cli_printf(ctx, ">%s", &priv->cmd_line.current.buf[0]);      /* 1行ごと再描画 */
+                    cli_printf(ctx, ">%s", &priv->text.line[0]);      /* 1行ごと再描画 */
                     cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
-                    cli_printf(ctx, "\e[%dC", priv->cmd_line.cursor.y + size);   /* 現在のカーソル位置に移動 */
+                    cli_printf(ctx, "\e[%dC", priv->cursor + size);   /* 現在のカーソル位置に移動 */
                 }
             }
             else
@@ -177,12 +177,11 @@ void cli_editor(cli_private_t *priv, char c)
 void cli_editor_new_line(cli_private_t *priv)
 {
     /* 現在行用buf・サイズの初期化 */
-    priv->cmd_line.current.buf[0] = '\0';
-    priv->cmd_line.current.size   = 0;
+    priv->text.line[0] = '\0';
+    priv->text.size   = 0;
 
-    /* カーソル位置(上下左右)の初期化 */
-    priv->cmd_line.cursor.y = 0;
-    priv->cmd_line.cursor.x = 0;
+    /* カーソル位置初期化 */
+    priv->cursor = 0;
 
     cli_context_t *ctx = get_public(priv);
 
@@ -196,14 +195,14 @@ void cli_editor_new_line(cli_private_t *priv)
 static void cli_escape_input(cli_private_t *priv, char c)
 {
     /* '\e'以降の構文作成 */
-    priv->cmd_line.escape.buf[priv->cmd_line.escape.size    ] = c;
-    priv->cmd_line.escape.buf[priv->cmd_line.escape.size + 1] = '\0';
-    priv->cmd_line.escape.size++;
+    priv->escape.buf[priv->escape.size    ] = c;
+    priv->escape.buf[priv->escape.size + 1] = '\0';
+    priv->escape.size++;
 
     /* ESCシーケンスの種別ごとに分岐 */
-    if (('[' == priv->cmd_line.escape.buf[0]) && (2 <= priv->cmd_line.escape.size))
+    if (('[' == priv->escape.buf[0]) && (2 <= priv->escape.size))
     {
-        switch (priv->cmd_line.escape.buf[1])
+        switch (priv->escape.buf[1])
         {
         case 'C':
             /* カーソル右移動 */
@@ -221,12 +220,12 @@ static void cli_escape_input(cli_private_t *priv, char c)
         }
 
         /* ESCの分岐結果に関わらずフラグはoffにする */
-        priv->cmd_line.escape.sequence = false;
+        priv->escape.sequence = false;
     }
-    else if ('[' != priv->cmd_line.escape.buf[0])
+    else if ('[' != priv->escape.buf[0])
     {
         /* ESC入力としての解釈不能なためフラグはoffにする */
-        priv->cmd_line.escape.sequence = false;
+        priv->escape.sequence = false;
     }
     else
     {
@@ -241,13 +240,13 @@ static void cli_cursor_move_right(cli_private_t *priv)
 {
     cli_context_t *ctx = get_public(priv);
 
-    if (priv->cmd_line.cursor.y < priv->cmd_line.current.size)
+    if (priv->cursor < priv->text.size)
     {
         /* カーソル位置更新(右に移動するよう描画) */
         cli_printf(ctx, "\e[C");
 
         /* カーソル位置更新 */
-        priv->cmd_line.cursor.y++;
+        priv->cursor++;
     }
     else
     {
@@ -262,13 +261,13 @@ static void cli_cursor_move_left(cli_private_t *priv)
 {
     cli_context_t *ctx = get_public(priv);
 
-    if (0 < priv->cmd_line.cursor.y)
+    if (0 < priv->cursor)
     {
         /* カーソル位置更新(左に移動するよう描画) */
         cli_printf(ctx, "\e[D");
 
         /* カーソル位置更新 */
-        priv->cmd_line.cursor.y--;
+        priv->cursor--;
     }
     else
     {

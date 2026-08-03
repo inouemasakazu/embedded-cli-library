@@ -51,10 +51,10 @@ int cli_io_write(cli_context_t *ctx, const char *p, uint16_t s)
     {
         cli_private_t *priv = get_priv(ctx);
 
-        if (priv->io_write.cb)
+        if (priv->io_write_cb)
         {
             /* 書き込みCB実行 */
-            success = priv->io_write.cb(p, s);
+            success = priv->io_write_cb(p, s);
         }
         else
         {
@@ -87,10 +87,10 @@ int cli_printf(cli_context_t *ctx, const char * format, ...)
         cli_private_t *priv = get_priv(ctx);
 
         int s = 0;
-        int n = sizeof(priv->io_write.buf);     /* 最大文字数(終端文字(\0)を含む) */
+        int n = priv->output.max_size;     /* 最大文字数(終端文字(\0)を含む) */
 
         va_start(arg, format);
-        s = vsnprintf(priv->io_write.buf, n, format, arg);
+        s = vsnprintf((char *)priv->output.buf, n, format, arg);
         va_end(arg);
 
         if (0 < s)
@@ -99,11 +99,11 @@ int cli_printf(cli_context_t *ctx, const char * format, ...)
             {
                 /* 出力用bufサイズをoverしているので切り詰める */
                 s = (n - 1);
-                priv->io_write.buf[s] = '\0';
+                priv->output.buf[s] = '\0';
             }
 
             /* 出力処理実行 */
-            success = cli_io_write(ctx, priv->io_write.buf, ((uint16_t)s));
+            success = cli_io_write(ctx, (const char *)priv->output.buf, ((uint16_t)s));
             if (success == 0)
             {
                 /* 処理結果として出力byte数を返す */
@@ -139,11 +139,11 @@ int cli_putc(cli_context_t *ctx, char c)
         cli_private_t *priv = get_priv(ctx);
 
         /* データ整形 */
-        priv->io_write.buf[0] = c;
-        priv->io_write.buf[1] = '\0';
+        priv->output.buf[0] = c;
+        priv->output.buf[1] = '\0';
 
         /* 出力処理実行 */
-        success = cli_io_write(ctx, priv->io_write.buf, 1);
+        success = cli_io_write(ctx, (const char *)priv->output.buf, 1);
     }
 
     return success;

@@ -13,6 +13,7 @@
  * Public include
  ****************************************************************************************************/
 #include <stdint.h>
+#include <stddef.h>
 
 /****************************************************************************************************
  * Public define
@@ -47,6 +48,12 @@ typedef struct
 {
     const char *prompt;
     io_write_cb_t io_write_cb;
+
+    uint32_t max_line_size;
+    uint32_t max_output_size;
+
+    uint32_t depth_argv;
+//    uint32_t history_depth;
 } cli_config_t;
 
 
@@ -62,9 +69,11 @@ typedef struct
  * @brief CLI初期化
  * @param ctx CLIの状態データを保持するメモリ領域
  * @param cfg 設定データ
+ * @param workspace workspaceメモリ
+ * @param size workspaceのサイズ
  * @return 処理結果
  */
-int cli_init(cli_context_t *ctx, const cli_config_t *cfg);
+int cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace, size_t size);
 
 /**
  * @brief CLI開始
