@@ -51,13 +51,6 @@ typedef struct
 
 typedef struct
 {
-    bool sequence;
-    char buf[8];
-    uint8_t size;
-} cli_escape_t;
-
-typedef struct
-{
     char name[CLI_CMD_NAME_SIZE];
     cmd_handler_t handler;
     bool is_used;
@@ -67,10 +60,10 @@ typedef struct
 {
     const char *prompt;
 
+    uint16_t status;
+
     cli_text_t text;
     cli_output_t output;
-
-    cli_escape_t escape;
 
     /* コマンドライン引数 */
     cli_argument_t argument;

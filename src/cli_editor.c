@@ -39,7 +39,6 @@ static void cli_textline_delete_text(cli_private_t *priv);
 static void cli_textline_cursor_right(cli_private_t *priv);
 static void cli_textline_cursor_left(cli_private_t *priv);
 
-static void cli_escape_input(cli_private_t *priv, char c);
 
 static void cli_textline_set_cursor_pos(cli_private_t *priv, uint32_t pos);
 
@@ -53,38 +52,83 @@ static uint32_t cli_textline_get_cursor_pos(cli_private_t *priv);
  */
 void cli_editor(cli_private_t *priv, char c)
 {
-    if (priv->escape.sequence)
+    uint16_t event = 0;
+
+    switch (priv->status)
     {
-        /* ESCシーケンスキーの入力 */
-        cli_escape_input(priv, c);
-    }
-    else if (ESC == c)
-    {
-        /* ESCシーケンスの入力 */
-        priv->escape.sequence = true;
-        priv->escape.buf[0] = '\0';
-        priv->escape.size   = 0;
-    }
-    else
-    {
-        if ((SPC <= c) && (c <= 0x7e))
+    case 0:
+        if (ESC == c)
         {
-            /* CHARACTER */
-            cli_textline_add_char(priv, c);
+            priv->status = 1;
+        }
+        else if ((SPC <= c) && (c <= 0x7e))
+        {
+            event = 1;
         }
         else if (BS == c)
         {
-            /* BACKSPACE */
-            cli_textline_delete_char(priv);
+            event = 2;
         }
         else
         {
             ;
         }
+        break;
+
+    case 1:
+        if ('[' == c)
+        {
+            priv->status = 2;
+        }
+        else
+        {
+            priv->status = 0;
+        }
+        break;
+
+    case 2:
+        if ('C' == c)
+        {
+            event = 3;
+        }
+        else if ('D' == c)
+        {
+            event = 4;
+        }
+        else
+        {
+            event = 0;
+        }
+
+        priv->status = 0;
+        break;
+    default:
+        break;
     }
 
-    if (true != priv->escape.sequence)
+    if (event != 0)
     {
+        if (event == 1)
+        {
+            /* CHARACTER */
+            cli_textline_add_char(priv, c);
+        }
+        else if (event == 2)
+        {
+            /* BACKSPACE */
+            cli_textline_delete_char(priv);
+        }
+        else if (event == 3)
+        {
+            /* カーソル右移動 */
+            cli_textline_cursor_right(priv);
+        }
+        else if (event == 4)
+        {
+            /* カーソル左移動 */
+            cli_textline_cursor_left(priv);
+        }
+
         cli_context_t *ctx = get_public(priv);
         size_t p_len = strlen(priv->prompt);
 
@@ -234,49 +278,6 @@ void cli_editor_new_line(cli_private_t *priv)
     cli_printf(ctx, "%s", priv->prompt);
 }
 
-/**
- * @brief ESCシーケンス入力処理
- */
-static void cli_escape_input(cli_private_t *priv, char c)
-{
-    /* '\e'以降の構文作成 */
-    priv->escape.buf[priv->escape.size    ] = c;
-    priv->escape.buf[priv->escape.size + 1] = '\0';
-    priv->escape.size++;
-
-    /* ESCシーケンスの種別ごとに分岐 */
-    if (('[' == priv->escape.buf[0]) && (2 <= priv->escape.size))
-    {
-        switch (priv->escape.buf[1])
-        {
-        case 'C':
-            /* カーソル右移動 */
-            cli_textline_cursor_right(priv);
-            break;
-
-        case 'D':
-            /* カーソル左移動 */
-            cli_textline_cursor_left(priv);
-            break;
-
-        default:
-            /* DO NOTHING */
-            break;
-        }
-
-        /* ESCの分岐結果に関わらずフラグはoffにする */
-        priv->escape.sequence = false;
-    }
-    else if ('[' != priv->escape.buf[0])
-    {
-        /* ESC入力としての解釈不能なためフラグはoffにする */
-        priv->escape.sequence = false;
-    }
-    else
-    {
-        /* DO NOTHING */
-    }
-}
 
 /********************
  * Setter functions
