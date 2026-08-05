@@ -32,11 +32,18 @@
 /****************************************************************************************************
  * Private Functions
  ****************************************************************************************************/
+static void cli_textline_add_char(cli_private_t *priv, char c);
+static void cli_textline_delete_char(cli_private_t *priv);
+static void cli_textline_delete_text(cli_private_t *priv);
+
+static void cli_textline_cursor_right(cli_private_t *priv);
+static void cli_textline_cursor_left(cli_private_t *priv);
 
 static void cli_escape_input(cli_private_t *priv, char c);
 
-static void cli_cursor_move_right(cli_private_t *priv);
-static void cli_cursor_move_left(cli_private_t *priv);
+static void cli_textline_set_cursor_pos(cli_private_t *priv, uint32_t pos);
+
+static uint32_t cli_textline_get_cursor_pos(cli_private_t *priv);
 
 /**
  * @brief Command Lineの編集
@@ -46,11 +53,6 @@ static void cli_cursor_move_left(cli_private_t *priv);
  */
 void cli_editor(cli_private_t *priv, char c)
 {
-    cli_context_t *ctx = get_public(priv);
-
-    char temp[128] = {'\0'};
-    uint8_t size = 0;
-
     if (priv->escape.sequence)
     {
         /* ESCシーケンスキーの入力 */
@@ -65,110 +67,158 @@ void cli_editor(cli_private_t *priv, char c)
     }
     else
     {
-        /* キャラクタの入力 */
-        if (priv->text.size <= priv->cursor)
+        if ((SPC <= c) && (c <= 0x7e))
         {
-            /* 入力データサイズがカーソル位置より小さい */
-            if ((SPC <= c) && (c <= 0x7e))
-            {
-                /* 図形文字(空白含む) */
-                if (priv->text.size < (priv->text.max_size - 1))
-                {
-                    priv->text.line[priv->text.size    ] = c;
-                    priv->text.line[priv->text.size + 1] = '\0';         /* バッファ終端にNULL文字を挿入 */
-                    priv->text.size++;
-
-                    priv->cursor++;
-                }
-
-                cli_printf(ctx, "%c", c);        /* バッファフローしていてもエコーバックは行う */
-            }
-            else if (BS == c)
-            {
-                /* バックスペース */
-                if (0 < priv->text.size)
-                {
-                    priv->text.size--;
-                    priv->text.line[priv->text.size] = '\0';
-
-                    priv->cursor--;
-
-                    cli_printf(ctx, "%c", BS );
-                    cli_printf(ctx, "%c", SPC);
-                    cli_printf(ctx, "%c", BS );
-                }
-            }
-            else
-            {
-                /* 図形文字以外は受付しない */
-            }
+            /* CHARACTER */
+            cli_textline_add_char(priv, c);
+        }
+        else if (BS == c)
+        {
+            /* BACKSPACE */
+            cli_textline_delete_char(priv);
         }
         else
         {
-            /* 入力データサイズがカーソル位置より大きい */
-            if ((SPC <= c) && (c <= 0x7e))
-            {
-                /* 現在のカーソル位置から後ろの文字列を一時bufに退避 */
-                memccpy(&temp[0], &priv->text.line[priv->cursor], '\0', priv->text.size);
-
-                /* 現在のカーソル位置に文字を挿入 */
-                priv->text.line[priv->cursor    ] = c;
-                priv->text.line[priv->cursor + 1] = '\0';
-                priv->cursor++;
-
-                /* 一時bufに退避した文字列を最新のカーソル位置に挿入 */
-                memccpy(&priv->text.line[priv->cursor], &temp[0], '\0', priv->text.size);
-
-                /* データサイズ更新 */
-                priv->text.size++;
-
-                /* プロンプトの文字列サイズを取得 */
-                size = (uint8_t)strlen(priv->prompt);
-
-                /* カーソルのある行を1行ごと再描画 */
-                cli_printf(ctx, "\033[2K");                                 /* カーソルが存在する１行を消去 */
-                cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
-                cli_printf(ctx, ">%s", &priv->text.line[0]);      /* 1行ごと再描画 */
-                cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
-                cli_printf(ctx, "\e[%dC", priv->cursor + size);   /* 現在のカーソル位置に移動 */
-            }
-            else if (BS == c)
-            {
-                /* バックスペース */
-                if ((0 < priv->text.size) && (0 < priv->cursor))
-                {
-                    /* 現在のカーソル位置から後ろの文字列を一時bufに退避 */
-                    memccpy(&temp[0], &priv->text.line[priv->cursor], '\0', priv->text.size);
-
-                    /* 現在のカーソル位置に存在する文字を削除 */
-                    priv->cursor--;
-                    priv->text.line[priv->cursor] = '\0';
-
-                    /* 一時bufに退避した文字列を最新のカーソル位置に挿入 */
-                    memccpy(&priv->text.line[priv->cursor], &temp[0], '\0', priv->text.size);
-
-                    /* データサイズ更新 */
-                    priv->text.size--;
-
-                    /* プロンプトの文字列サイズを取得 */
-                    size = (uint8_t)strlen(priv->prompt);
-
-                    /* カーソルのある行を1行ごと再描画 */
-                    cli_printf(ctx, "\033[2K");                                 /* カーソルが存在する１行を消去 */
-                    cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
-                    cli_printf(ctx, ">%s", &priv->text.line[0]);      /* 1行ごと再描画 */
-                    cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
-                    cli_printf(ctx, "\e[%dC", priv->cursor + size);   /* 現在のカーソル位置に移動 */
-                }
-            }
-            else
-            {
-                /* 図形文字以外は受付しない */
-            }
+            ;
         }
+    }
+
+    if (true != priv->escape.sequence)
+    {
+        cli_context_t *ctx = get_public(priv);
+        size_t p_len = strlen(priv->prompt);
+
+        /* text line draw refresh. */
+        cli_printf(ctx, "\033[2K");                                 /* テキスト行を行ごと削除 */
+        cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
+        cli_printf(ctx, "%s", priv->prompt);                        /* プロンプト表示 */
+        cli_printf(ctx, "%s", priv->text.line);                     /* テキスト行表示 */
+        cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
+        cli_printf(ctx, "\e[%dC", priv->text.cursor + p_len);       /* 現在のカーソル位置に移動 */
     }
 }
 
+/**
+ * @brief キャラクタ追加
+ *        テキスト行のカーソル位置にキャラクタを追加する
+ * @param priv テキストラインデータへのポインタ
+ * @param c    キャラクタ
+ */
+static void cli_textline_add_char(cli_private_t *priv, char c)
+{
+    uint8_t char_buf[2] = { 0 };
+
+    char_buf[0] = (uint8_t)c;
+    char_buf[1] = 0;
+
+    const char *in_text = (const char *)char_buf;
+
+    size_t line_len = strlen((const char *)priv->text.line);
+    size_t in_len   = strlen(in_text);
+    size_t new_len  = line_len + in_len;
+
+    uint32_t pos = cli_textline_get_cursor_pos(priv);
+
+    if (new_len <= (priv->text.max_size - 1))
+    {
+        /* 現在のカーソル位置にキャラクタを追加するため、カーソル位置より後ろのデータをずらす */
+        for (size_t i = new_len; i >= (pos + in_len) ; i--)
+        {
+            priv->text.line[i] = priv->text.line[i - in_len];
+        }
+
+        /* add character */
+        priv->text.line[pos] = in_text[0];
+
+        cli_textline_set_cursor_pos(priv, (pos + 1));
+    }
+    else
+    {
+        /* buffer full */
+    }
+}
+
+/**
+ * @brief キャラクタ消去
+ *        テキスト行のカーソル位置からキャラクタを消去する
+ * @param priv テキストラインデータへのポインタ
+ */
+static void cli_textline_delete_char(cli_private_t *priv)
+{
+    size_t line_len = strlen((const char *)priv->text.line);
+    size_t new_len  = 0;
+
+    uint32_t pos = cli_textline_get_cursor_pos(priv);
+
+    if ((0 < line_len) && (0 < pos))
+    {
+        new_len = line_len - 1;
+
+        /* 現在のカーソル位置にキャラクタを追加するため、カーソル位置より後ろのデータをずらす */
+        for (size_t i = pos; i <= new_len; i++)
+        {
+            priv->text.line[i] = priv->text.line[i + 1];
+        }
+
+        priv->text.line[new_len] = '\0';
+
+        cli_textline_set_cursor_pos(priv, (pos - 1));
+    }
+    else
+    {
+        /* buffer empty */
+    }
+}
+
+/**
+ * @brief テキスト消去
+ *        テキスト行のすべてのテキストを消去する
+ * @param priv テキストラインデータへのポインタ
+ */
+static void cli_textline_delete_text(cli_private_t *priv)
+{
+    size_t text_len = strlen((const char *)priv->text.line);
+    char *p = (char *)priv->text.line;
+
+    for (size_t i = 0; i < text_len; i++)
+    {
+        *(p + i) = '\0';
+    }
+
+    cli_textline_set_cursor_pos(priv, 0);
+}
+
+/**
+ * @brief カーソル右移動
+ *        テキスト行上のカーソル位置を右に移動する
+ * @param priv テキストラインデータへのポインタ
+ */
+static void cli_textline_cursor_right(cli_private_t *priv)
+{
+    uint32_t cp = cli_textline_get_cursor_pos(priv);
+
+    size_t text_len = strlen((const char *)priv->text.line);
+
+    if (priv->text.cursor < text_len)
+    {
+        cli_textline_set_cursor_pos(priv, (cp + 1));
+    }
+}
+
+/**
+ * @brief カーソル左移動
+ *        テキスト行上のカーソル位置を左に移動する
+ * @param priv テキストラインデータへのポインタ
+ */
+static void cli_textline_cursor_left(cli_private_t *priv)
+{
+    uint32_t cp = cli_textline_get_cursor_pos(priv);
+
+    if (0 < priv->text.cursor)
+    {
+        cli_textline_set_cursor_pos(priv, (cp - 1));
+    }
+}
 
 /**
  * @brief Command Line改行
@@ -176,17 +226,12 @@ void cli_editor(cli_private_t *priv, char c)
  */
 void cli_editor_new_line(cli_private_t *priv)
 {
-    /* 現在行用buf・サイズの初期化 */
-    priv->text.line[0] = '\0';
-    priv->text.size   = 0;
-
-    /* カーソル位置初期化 */
-    priv->cursor = 0;
+    cli_textline_delete_text(priv);
 
     cli_context_t *ctx = get_public(priv);
 
-    /* 改行と改行後のプロンプトを描画 */
-    cli_printf(ctx, "\r\n%s", priv->prompt);
+    cli_printf(ctx, "\r\n");
+    cli_printf(ctx, "%s", priv->prompt);
 }
 
 /**
@@ -206,12 +251,12 @@ static void cli_escape_input(cli_private_t *priv, char c)
         {
         case 'C':
             /* カーソル右移動 */
-            cli_cursor_move_right(priv);
+            cli_textline_cursor_right(priv);
             break;
 
         case 'D':
             /* カーソル左移動 */
-            cli_cursor_move_left(priv);
+            cli_textline_cursor_left(priv);
             break;
 
         default:
@@ -233,44 +278,20 @@ static void cli_escape_input(cli_private_t *priv, char c)
     }
 }
 
-/**
- * @brief カーソルの右移動
- */
-static void cli_cursor_move_right(cli_private_t *priv)
+/********************
+ * Setter functions
+ ********************/
+
+static void cli_textline_set_cursor_pos(cli_private_t *priv, uint32_t pos)
 {
-    cli_context_t *ctx = get_public(priv);
-
-    if (priv->cursor < priv->text.size)
-    {
-        /* カーソル位置更新(右に移動するよう描画) */
-        cli_printf(ctx, "\e[C");
-
-        /* カーソル位置更新 */
-        priv->cursor++;
-    }
-    else
-    {
-        /* DO NOTHING */
-    }
+    priv->text.cursor = pos;
 }
 
-/**
- * @brief カーソルの左移動
- */
-static void cli_cursor_move_left(cli_private_t *priv)
+/********************
+ * Getter functions
+ ********************/
+
+static uint32_t cli_textline_get_cursor_pos(cli_private_t *priv)
 {
-    cli_context_t *ctx = get_public(priv);
-
-    if (0 < priv->cursor)
-    {
-        /* カーソル位置更新(左に移動するよう描画) */
-        cli_printf(ctx, "\e[D");
-
-        /* カーソル位置更新 */
-        priv->cursor--;
-    }
-    else
-    {
-        /* DO NOTHING */
-    }
+    return priv->text.cursor;
 }

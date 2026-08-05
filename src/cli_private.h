@@ -31,8 +31,9 @@
 typedef struct
 {
     uint8_t *line;
-    uint32_t size;
     uint32_t max_size;
+
+    uint32_t cursor;
 } cli_text_t;
 
 typedef struct
@@ -68,8 +69,6 @@ typedef struct
 
     cli_text_t text;
     cli_output_t output;
-
-    uint32_t cursor;
 
     cli_escape_t escape;
 
