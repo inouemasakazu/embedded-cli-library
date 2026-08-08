@@ -38,6 +38,19 @@ typedef struct
 
 typedef struct
 {
+    bool is_valid;
+
+    uint8_t *buffer;
+    uint32_t max_size;
+
+    uint32_t head;
+    uint32_t tail;
+
+    uint32_t count;
+} cli_history_t;
+
+typedef struct
+{
     uint8_t *buf;
     uint32_t max_size;
 } cli_output_t;
@@ -63,6 +76,8 @@ typedef struct
     uint16_t status;
 
     cli_text_t text;
+    cli_history_t history;
+
     cli_output_t output;
 
     /* コマンドライン引数 */

@@ -53,7 +53,7 @@ typedef struct
     uint32_t max_output_size;
 
     uint32_t depth_argv;
-//    uint32_t history_depth;
+    uint32_t depth_history;
 } cli_config_t;
 
 

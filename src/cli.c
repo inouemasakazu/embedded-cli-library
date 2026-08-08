@@ -135,6 +135,7 @@ int cli_workspace_memory_layout(cli_private_t *priv, const cli_config_t *cfg, vo
     total = cfg->max_line_size;
     total = total + cfg->max_output_size;
     total = total + (cfg->depth_argv * sizeof(char *));
+    total = total + (cfg->max_line_size * cfg->depth_history);
 
     if (0 == size)
     {
@@ -167,6 +168,11 @@ int cli_workspace_memory_layout(cli_private_t *priv, const cli_config_t *cfg, vo
 
     priv->argument.vector = (char **)(workspace + offset);
     priv->argument.max_size = (cfg->depth_argv * sizeof(char *));
+
+    offset = offset + priv->argument.max_size;
+
+    priv->history.buffer = (workspace + offset);
+    priv->history.max_size = (priv->text.max_size * cfg->depth_history);
 
     return 0;
 }
