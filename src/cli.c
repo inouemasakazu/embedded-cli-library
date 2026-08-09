@@ -329,8 +329,8 @@ static void cli_cmd_execute(cli_private_t *priv)
         /* DO NOTHING */
     }
 
-    /* Command Line改行 */
-    cli_editor_new_line(priv);
+    /* 改行 */
+    cli_textline_break(priv);
 }
 
 /**

@@ -441,10 +441,10 @@ static void cli_textline_history_next(cli_private_t *priv)
 }
 
 /**
- * @brief Command Line改行
- * @param ctx CLIの状態データを保持するメモリ領域
+ * @brief 改行処理
+ * @param priv テキストラインデータへのポインタ
  */
-void cli_editor_new_line(cli_private_t *priv)
+void cli_textline_break(cli_private_t *priv)
 {
     size_t text_len = strlen((const char *)priv->text.line);
 
