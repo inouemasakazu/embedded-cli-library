@@ -43,13 +43,74 @@
  * Public Functions
  ****************************************************************************************************/
 
-/**
- * @brief Command Lineの編集
- *        入力された文字データに応じてCommand Line用bufの編集処理を行う。
- * @param ctx CLIの状態データを保持するメモリ領域
- * @param c 入力文字(制御データ含む)
+ /**
+ * @brief キャラクタ追加
+ *        テキスト行のカーソル位置にキャラクタを追加する
+ * @param priv テキストラインデータへのポインタ
+ * @param c    キャラクタ
  */
-void cli_editor(cli_private_t *priv, char c);
+void cli_textline_add_char(cli_private_t *priv, char c);
+
+/**
+ * @brief キャラクタ消去
+ *        テキスト行のカーソル位置からキャラクタを消去する
+ * @param priv テキストラインデータへのポインタ
+ */
+void cli_textline_delete_char(cli_private_t *priv);
+
+/**
+ * @brief テキスト消去
+ *        テキスト行のすべてのテキストを消去する
+ * @param priv テキストラインデータへのポインタ
+ */
+void cli_textline_delete_text(cli_private_t *priv);
+
+/**
+ * @brief カーソル右移動
+ *        テキスト行上のカーソル位置を右に移動する
+ * @param priv テキストラインデータへのポインタ
+ */
+void cli_textline_cursor_right(cli_private_t *priv);
+
+/**
+ * @brief カーソル左移動
+ *        テキスト行上のカーソル位置を左に移動する
+ * @param priv テキストラインデータへのポインタ
+ */
+void cli_textline_cursor_left(cli_private_t *priv);
+
+/**
+ * @brief 履歴追加
+ *        引数のtextを履歴として履歴用の循環バッファに保存する。
+ * @param priv テキストラインデータへのポインタ
+ * @param text 保存するテキストデータのポインタ
+ */
+void cli_textline_add_history(cli_private_t *priv, const char *text);
+
+/**
+ * @brief 履歴取得
+ *        履歴用の循環バッファから、指定ポイントのデータを取得する
+ *        循環バッファではあるが読み出し位置の更新は行わない
+ * @param priv テキストラインデータへのポインタ
+ * @param point 循環バッファの指定ポイント
+ */
+const char *cli_textline_history_pull(cli_private_t *priv, uint32_t point);
+
+/**
+ * @brief 履歴呼び出し(古い履歴を遡る)
+ *        履歴としてストレージしているデータを、新しいデータから、古いデータの順に呼び出す。
+ *        呼び出したデータは、テキスト行にコピーする。
+ * @param priv テキストラインデータへのポインタ
+ */
+void cli_textline_history_prev(cli_private_t *priv);
+
+/**
+ * @brief 履歴呼び出し(新しい履歴に進む)
+ *        履歴としてストレージしているデータを、古いデータから、新しいデータの順に呼び出す。
+ *        呼び出したデータは、テキスト行にコピーする。
+ * @param priv テキストラインデータへのポインタ
+ */
+void cli_textline_history_next(cli_private_t *priv);
 
 /**
  * @brief 改行処理

@@ -32,138 +32,10 @@
 /****************************************************************************************************
  * Private Functions
  ****************************************************************************************************/
-static void cli_textline_add_char(cli_private_t *priv, char c);
-static void cli_textline_delete_char(cli_private_t *priv);
-static void cli_textline_delete_text(cli_private_t *priv);
-
-static void cli_textline_cursor_right(cli_private_t *priv);
-static void cli_textline_cursor_left(cli_private_t *priv);
-
-static void cli_textline_add_history(cli_private_t *priv, const char *text);
-static const char *cli_textline_history_pull(cli_private_t *priv, uint32_t point);
-
-static void cli_textline_history_prev(cli_private_t *priv);
-static void cli_textline_history_next(cli_private_t *priv);
-
-
 
 static void cli_textline_set_cursor_pos(cli_private_t *priv, uint32_t pos);
 
 static uint32_t cli_textline_get_cursor_pos(cli_private_t *priv);
-
-/**
- * @brief Command Lineの編集
- *        入力された文字データに応じてCommand Line用bufの編集処理を行う。
- * @param ctx CLIの状態データを保持するメモリ領域
- * @param c 入力文字(制御データ含む)
- */
-void cli_editor(cli_private_t *priv, char c)
-{
-    uint16_t event = 0;
-
-    switch (priv->status)
-    {
-    case 0:
-        if (ESC == c)
-        {
-            priv->status = 1;
-        }
-        else if ((SPC <= c) && (c <= 0x7e))
-        {
-            event = 1;
-        }
-        else if (BS == c)
-        {
-            event = 2;
-        }
-        else
-        {
-            ;
-        }
-        break;
-
-    case 1:
-        if ('[' == c)
-        {
-            priv->status = 2;
-        }
-        else
-        {
-            priv->status = 0;
-        }
-        break;
-
-    case 2:
-        if ('A' == c)
-        {
-            event = 5;
-        }
-        else if ('B' == c)
-        {
-            event = 6;
-        }
-        else if ('C' == c)
-        {
-            event = 3;
-        }
-        else if ('D' == c)
-        {
-            event = 4;
-        }
-        else
-        {
-            event = 0;
-        }
-
-        priv->status = 0;
-        break;
-    default:
-        break;
-    }
-
-    if (event != 0)
-    {
-        if (event == 1)
-        {
-            /* CHARACTER */
-            cli_textline_add_char(priv, c);
-        }
-        else if (event == 2)
-        {
-            /* BACKSPACE */
-            cli_textline_delete_char(priv);
-        }
-        else if (event == 3)
-        {
-            /* カーソル右移動 */
-            cli_textline_cursor_right(priv);
-        }
-        else if (event == 4)
-        {
-            /* カーソル左移動 */
-            cli_textline_cursor_left(priv);
-        }
-        else if (event == 5)
-        {
-            cli_textline_history_prev(priv);
-        }
-        else if (event == 6)
-        {
-            cli_textline_history_next(priv);
-        }
-    
-        cli_context_t *ctx = get_public(priv);
-        size_t p_len = strlen(priv->prompt);
-
-        /* text line draw refresh. */
-        cli_printf(ctx, "\033[2K");                                 /* テキスト行を行ごと削除 */
-        cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
-        cli_printf(ctx, "%s", priv->prompt);                        /* プロンプト表示 */
-        cli_printf(ctx, "%s", priv->text.line);                     /* テキスト行表示 */
-        cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
-        cli_printf(ctx, "\e[%dC", priv->text.cursor + p_len);       /* 現在のカーソル位置に移動 */
-    }
-}
 
 /**
  * @brief キャラクタ追加
@@ -171,7 +43,7 @@ void cli_editor(cli_private_t *priv, char c)
  * @param priv テキストラインデータへのポインタ
  * @param c    キャラクタ
  */
-static void cli_textline_add_char(cli_private_t *priv, char c)
+void cli_textline_add_char(cli_private_t *priv, char c)
 {
     uint8_t char_buf[2] = { 0 };
 
@@ -210,7 +82,7 @@ static void cli_textline_add_char(cli_private_t *priv, char c)
  *        テキスト行のカーソル位置からキャラクタを消去する
  * @param priv テキストラインデータへのポインタ
  */
-static void cli_textline_delete_char(cli_private_t *priv)
+void cli_textline_delete_char(cli_private_t *priv)
 {
     size_t line_len = strlen((const char *)priv->text.line);
     size_t new_len  = 0;
@@ -242,7 +114,7 @@ static void cli_textline_delete_char(cli_private_t *priv)
  *        テキスト行のすべてのテキストを消去する
  * @param priv テキストラインデータへのポインタ
  */
-static void cli_textline_delete_text(cli_private_t *priv)
+void cli_textline_delete_text(cli_private_t *priv)
 {
     size_t text_len = strlen((const char *)priv->text.line);
     char *p = (char *)priv->text.line;
@@ -260,7 +132,7 @@ static void cli_textline_delete_text(cli_private_t *priv)
  *        テキスト行上のカーソル位置を右に移動する
  * @param priv テキストラインデータへのポインタ
  */
-static void cli_textline_cursor_right(cli_private_t *priv)
+void cli_textline_cursor_right(cli_private_t *priv)
 {
     uint32_t cp = cli_textline_get_cursor_pos(priv);
 
@@ -277,7 +149,7 @@ static void cli_textline_cursor_right(cli_private_t *priv)
  *        テキスト行上のカーソル位置を左に移動する
  * @param priv テキストラインデータへのポインタ
  */
-static void cli_textline_cursor_left(cli_private_t *priv)
+void cli_textline_cursor_left(cli_private_t *priv)
 {
     uint32_t cp = cli_textline_get_cursor_pos(priv);
 
@@ -293,7 +165,7 @@ static void cli_textline_cursor_left(cli_private_t *priv)
  * @param priv テキストラインデータへのポインタ
  * @param text 保存するテキストデータのポインタ
  */
-static void cli_textline_add_history(cli_private_t *priv, const char *text)
+void cli_textline_add_history(cli_private_t *priv, const char *text)
 {
     size_t text_len = strlen(text);
 
@@ -335,7 +207,7 @@ static void cli_textline_add_history(cli_private_t *priv, const char *text)
  * @param priv テキストラインデータへのポインタ
  * @param point 循環バッファの指定ポイント
  */
-static const char *cli_textline_history_pull(cli_private_t *priv, uint32_t point)
+const char *cli_textline_history_pull(cli_private_t *priv, uint32_t point)
 {
     const char *text;
     uint32_t max = sizeof(priv->history.max_size / priv->text.max_size);
@@ -363,7 +235,7 @@ static const char *cli_textline_history_pull(cli_private_t *priv, uint32_t point
  *        呼び出したデータは、テキスト行にコピーする。
  * @param priv テキストラインデータへのポインタ
  */
-static void cli_textline_history_prev(cli_private_t *priv)
+void cli_textline_history_prev(cli_private_t *priv)
 {
     /* 履歴にデータあり？ */
     if ((0 < priv->history.count) && (priv->history.tail < priv->history.count))
@@ -402,7 +274,7 @@ static void cli_textline_history_prev(cli_private_t *priv)
  *        呼び出したデータは、テキスト行にコピーする。
  * @param priv テキストラインデータへのポインタ
  */
-static void cli_textline_history_next(cli_private_t *priv)
+void cli_textline_history_next(cli_private_t *priv)
 {
     /* 履歴にデータあり？ */
     if ((0 < priv->history.count) && (1 < priv->history.tail))
@@ -450,17 +322,9 @@ void cli_textline_break(cli_private_t *priv)
 
     if (0 < text_len)
     {
-        /* テキストを履歴として保存 */
-        cli_textline_add_history(priv, (const char *)priv->text.line);
-
         /* テキストデータをすべて消去 */
         cli_textline_delete_text(priv);
     }
-
-    cli_context_t *ctx = get_public(priv);
-
-    cli_printf(ctx, "\r\n");
-    cli_printf(ctx, "%s", priv->prompt);
 }
 
 
