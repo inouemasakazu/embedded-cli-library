@@ -56,16 +56,6 @@
 /****************************************************************************************************
  * Private typedef
  ****************************************************************************************************/
-/**
- * @brief 入力種別
- */
-typedef enum
-{
-    CLI_KIND_NONE = 0,
-    CLI_KIND_CL_EDITOR,
-    CLI_KIND_CMD_EXECUTE,
-    CLI_KIND_MAX
-} cli_kind_e;
 
 /****************************************************************************************************
  * Private Variables
@@ -76,10 +66,11 @@ typedef enum
  ****************************************************************************************************/
 static int cli_workspace_memory_layout(cli_private_t *priv, const cli_config_t *cfg, void *workspace, size_t size);
 
-/**
- * @brief 入力種別チェック
- */
-static cli_kind_e cli_kind_check(char c);
+static void cli_char_proc(cli_private_t *priv, char c);
+static void cli_esc_proc(cli_private_t *priv, char c);
+
+static void cli_event_send(cli_private_t *priv, uint16_t event, uint32_t parm);
+static void cli_event_handler(cli_private_t *priv, uint16_t event, uint32_t parm);
 
 /**
  * @brief コマンド実行処理
@@ -216,79 +207,172 @@ int cli_begin(cli_context_t *ctx, const char *message)
  */
 int cli_input_char(cli_context_t *ctx, char c)
 {
-    int success = 0;
-
     if (ctx == NULL)
     {
-        success = -1;
+        return -1;
+    }
+
+    cli_private_t *priv = get_priv(ctx);
+
+    switch (priv->state)
+    {
+    case PARSE_STATE_NOMAL:
+        if (ESC == c)
+        {
+            priv->state = PARSE_STATE_ESC_WAIT1;
+        }
+        else
+        {
+            cli_char_proc(priv, c);
+        }
+        break;
+
+    case PARSE_STATE_ESC_WAIT1:
+        if ('[' == c)
+        {
+            priv->state = PARSE_STATE_ESC_WAIT2;
+        }
+        else
+        {
+            priv->state = PARSE_STATE_NOMAL;
+        }
+        break;
+
+    case PARSE_STATE_ESC_WAIT2:
+        cli_esc_proc(priv, c);
+
+        priv->state = 0;
+        break;
+
+    default:
+        priv->state = PARSE_STATE_NOMAL;
+        break;
+    }
+
+    return 0;
+}
+
+static void cli_char_proc(cli_private_t *priv, char c)
+{
+    if ((SPC <= c) && (c <= 0x7e))
+    {
+        cli_event_send(priv, 1, c);
+    }
+    else if (BS == c)
+    {
+        cli_event_send(priv, 2, '\0');
+    }
+    else if ((LF == c) || (CR == c))
+    {
+        cli_event_send(priv, 3, '\0');
     }
     else
     {
-        cli_private_t *priv = get_priv(ctx);
-
-        cli_kind_e kind = cli_kind_check(c);
-
-        switch (kind)
-        {
-        case CLI_KIND_CL_EDITOR:
-            /* Command Lineの編集 */
-            cli_editor(priv, c);
-            break;
-
-        case CLI_KIND_CMD_EXECUTE:
-            /* コマンド実行 */
-            cli_cmd_execute(priv);
-            break;
-
-        case CLI_KIND_NONE:
-        default:
-            /* DO NOTHING */
-            break;
-        }
+        ;
     }
-
-    return success;
 }
 
-/**
- * @brief 入力種別チェック
- * @param c 入力文字
- * @return 入力種別
- */
-static cli_kind_e cli_kind_check(char c)
+static void cli_esc_proc(cli_private_t *priv, char c)
 {
-    cli_kind_e kind = CLI_KIND_NONE;
-
-    /* 入力文字から処理種別を確定 */
-    if ((LF == c) || (CR == c))
+    if ('A' == c)
     {
-        /* Command Lineの確定 */
-        /* 入力済みのCommand Lineを確定しコマンド実行処理を行う */
-        kind = CLI_KIND_CMD_EXECUTE;
+        cli_event_send(priv, 4, '\0');
     }
-    else if ((SPC <= c) && (c <= 0x7e)) {
-        /* 図形文字 */
-        /* Command Lineの編集 */
-        kind = CLI_KIND_CL_EDITOR;
-    }
-    else if (ESC  == c)
+    else if ('B' == c)
     {
-        /* ESCシーケンスの開始文字 */
-        /* Command Lineの編集 */
-        kind = CLI_KIND_CL_EDITOR;
+        cli_event_send(priv, 5, '\0');
     }
-    else if (BS  == c)
+    else if ('C' == c)
     {
-        /* backスペース文字 */
-        /* Command Lineの編集 */
-        kind = CLI_KIND_CL_EDITOR;
+        cli_event_send(priv, 6, '\0');
+    }
+    else if ('D' == c)
+    {
+        cli_event_send(priv, 7, '\0');
     }
     else
     {
         /* DO NOTHING */
     }
+}
 
-    return kind;
+static void cli_event_send(cli_private_t *priv, uint16_t event, uint32_t parm)
+{
+    if (event != 0)
+    {
+        cli_event_handler(priv, event, parm);
+    }
+}
+
+static void cli_event_handler(cli_private_t *priv, uint16_t event, uint32_t parm)
+{
+    cli_context_t *ctx = get_public(priv);
+
+    if (event != 0)
+    {
+        if (event == 1)
+        {
+            char c = (char)parm;
+            /* CHARACTER */
+            cli_textline_add_char(priv, c);
+        }
+        else if (event == 2)
+        {
+            /* BACKSPACE */
+            cli_textline_delete_char(priv);
+        }
+        else if (event == 3)
+        {
+            size_t text_len = strlen((const char *)priv->text.line);
+
+            if (0 < text_len)
+            {
+                /* 現在のテキストを履歴用バッファに保存 */
+                cli_textline_add_history(priv, (const char *)priv->text.line);
+
+                /* コマンド実行 */
+                cli_cmd_execute(priv);
+            }
+
+            /* 改行 */
+            cli_textline_break(priv);
+            cli_printf(ctx, "\r\n");
+        }
+        else if (event ==4)
+        {
+            cli_textline_history_prev(priv);
+        }
+        else if (event == 5)
+        {
+            cli_textline_history_next(priv);
+        }
+        else if (event == 6)
+        {
+            /* カーソル右移動 */
+            cli_textline_cursor_right(priv);
+        }
+        else if (event == 7)
+        {
+            /* カーソル左移動 */
+            cli_textline_cursor_left(priv);
+        }
+
+        size_t p_len = strlen(priv->prompt);
+
+#if 0
+        /* text line draw refresh. */
+        cli_printf(ctx, "\033[2K");                                 /* テキスト行を行ごと削除 */
+        cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
+        cli_printf(ctx, "%s", priv->prompt);                        /* プロンプト表示 */
+        cli_printf(ctx, "%s", priv->text.line);                     /* テキスト行表示 */
+        cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
+        cli_printf(ctx, "\e[%dC", priv->text.cursor + p_len);       /* 現在のカーソル位置に移動 */
+#else
+        cli_printf(ctx, "\033[2K\r%s", priv->prompt);                                 /* テキスト行を行ごと削除 */
+        cli_printf(ctx, "%s", priv->text.line);                     /* テキスト行表示 */
+        cli_printf(ctx, "\r\e[%dC", priv->text.cursor + p_len);       /* 現在のカーソル位置に移動 */
+#endif
+    }
 }
 
 /**
@@ -328,9 +412,6 @@ static void cli_cmd_execute(cli_private_t *priv)
     {
         /* DO NOTHING */
     }
-
-    /* 改行 */
-    cli_textline_break(priv);
 }
 
 /**

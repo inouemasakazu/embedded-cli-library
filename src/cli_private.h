@@ -28,6 +28,13 @@
  * Public typedef
  ****************************************************************************************************/
 
+typedef enum
+{
+    PARSE_STATE_NOMAL,
+    PARSE_STATE_ESC_WAIT1,
+    PARSE_STATE_ESC_WAIT2,
+} parse_state_t;
+
 typedef struct
 {
     uint8_t *line;
@@ -73,7 +80,7 @@ typedef struct
 {
     const char *prompt;
 
-    uint16_t status;
+    parse_state_t state;
 
     cli_text_t text;
     cli_history_t history;
