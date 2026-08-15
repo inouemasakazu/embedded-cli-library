@@ -51,8 +51,6 @@
     #define CLI_ASSERT(expr) ((void)0U)
 #endif /* CLI_DEBUG */
 
-#define CLI_CMD_NULL       NULL
-
 /****************************************************************************************************
  * Private typedef
  ****************************************************************************************************/
@@ -72,15 +70,10 @@ static void cli_esc_proc(cli_private_t *priv, char c);
 static void cli_event_send(cli_private_t *priv, uint16_t event, uint32_t parm);
 static void cli_event_handler(cli_private_t *priv, uint16_t event, uint32_t parm);
 
-/**
- * @brief コマンド実行処理
- */
-static void cli_cmd_execute(cli_private_t *priv);
-
+static void cli_enter(cli_private_t *priv);
+static int cli_command_execute(cli_private_t *priv);
 static void cli_tokenizer(cli_private_t *priv);
-static int cli_dispatch(cli_private_t *priv);
 
-static int cli_cmd_find(cli_private_t *priv, const char *name, bool is_used);
 
 /**
  * @brief CLI初期化
@@ -110,6 +103,12 @@ int cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace, size_
         /* 設定データを反映 */
         cli_set_prompt(ctx, cfg->prompt);
         cli_set_stdout_cb(ctx, cfg->io_write_cb);
+
+        if (cfg->command_list != NULL)
+        {
+            priv->command_list = cfg->command_list;
+            priv->list_size = cfg->list_size;
+        }
     }
 
     return success;
@@ -323,20 +322,7 @@ static void cli_event_handler(cli_private_t *priv, uint16_t event, uint32_t parm
         }
         else if (event == 3)
         {
-            size_t text_len = strlen((const char *)priv->text.line);
-
-            if (0 < text_len)
-            {
-                /* 現在のテキストを履歴用バッファに保存 */
-                cli_textline_add_history(priv, (const char *)priv->text.line);
-
-                /* コマンド実行 */
-                cli_cmd_execute(priv);
-            }
-
-            /* 改行 */
-            cli_textline_break(priv);
-            cli_printf(ctx, "\r\n");
+            cli_enter(priv);
         }
         else if (event ==4)
         {
@@ -375,43 +361,76 @@ static void cli_event_handler(cli_private_t *priv, uint16_t event, uint32_t parm
     }
 }
 
-/**
- * @brief コマンド実行処理
- */
-static void cli_cmd_execute(cli_private_t *priv)
+static void cli_enter(cli_private_t *priv)
 {
-    CLI_ASSERT(ctx != NULL);
+    size_t text_len = strlen((const char *)priv->text.line);
 
-    /* Command Lineをトークンに分割 */
-    cli_tokenizer(priv);
+    cli_context_t *ctx = get_public(priv);
 
-    if (0 < priv->argument.count)
+    if (0 < text_len)
     {
-        cli_context_t *ctx = get_public(priv);
+        /* 現在のテキストを履歴用バッファに保存 */
+        cli_textline_add_history(priv, (const char *)priv->text.line);
 
-        /* コマンドのディスパッチ */
-        int success = cli_dispatch(priv);
+        /* テキストをトークン化 */
+        cli_tokenizer(priv);
 
-        /* コマンドの実行結果に応じてメッセージを描画 */
-        if (success == 1)
+        if (0 < priv->argument.count)
         {
-            /* 該当コマンドなし */
-            cli_printf(ctx, "\r\nError: '%s' command not found\r\n", priv->argument.vector[0]);
-        }
-        else if (success == -1)
-        {
-            /* 実行コマンドのエラー */
-            cli_printf(ctx, "\r\nError: command execution failed\r\n");
-        }
-        else
-        {
-            /* DO NOTHING */
+            /* コマンド実行 */
+            int success = cli_command_execute(priv);
+            if (success == 1)
+            {
+                /* コマンドがない */
+                cli_printf(ctx, "\r\nError: '%s' command not found\r\n", priv->argument.vector[0]);
+            }
+            else if (success == -1)
+            {
+                /* コマンドの実行エラー */
+                cli_printf(ctx, "\r\nError: command execution failed\r\n");
+            }
+            else
+            {
+                /* DO NOTHING */
+            }
         }
     }
-    else
+
+    /* 改行 */
+    cli_textline_break(priv);
+    cli_printf(ctx, "\r\n");
+}
+
+/**
+ * @brief コマンド実行
+ *        コマンドライン引数が保持するコマンド名と、コマンドリストに一致するコマンド名の探索を行う。
+ *        一致するコマンド名が存在する場合はコマンド実行の要求ありのため、handlerを起動する。
+ * @param priv 
+ * @return 実行結果
+ */
+
+static int cli_command_execute(cli_private_t *priv)
+{
+    const cli_command_t *list = priv->command_list;
+
+    int argc    = priv->argument.count;
+    char **argv = priv->argument.vector;
+
+    if ((list == NULL) || (argv == NULL)) return -1;
+    if (argc == 0) return -2;
+
+    for (size_t i = 0; i < priv->list_size; i++)
     {
-        /* DO NOTHING */
+        if (strcmp(list[i].name, argv[0]) == 0)
+        {
+            if (list[i].handler)
+            {
+                return list[i].handler(argc, argv);
+            }
+        }
     }
+
+    return -1;
 }
 
 /**
@@ -459,172 +478,6 @@ static void cli_tokenizer(cli_private_t *priv)
     }
 }
 
-/**
- * @name  cli_dispatch
- * @brief コマンドのディスパッチ
- * @param ctx CLIコンテキスト
- * @return 異常(-1) / コマンドなし(1) / 成功(0)
- * @note コマンドなしは、コマンドテーブルにコマンドが登録されていない場合を示す。
- *       コマンドなしとコマンド実行エラーは異なる値で返す。
- */
-static int cli_dispatch(cli_private_t *priv)
-{
-    int result = -1;
-
-    CLI_ASSERT(ctx != NULL);
-
-    if (priv->argument.count <= 0)
-    {
-        result = 2;   /* トークンなし */
-    }
-    else
-    {
-        /* コマンドを探す */
-        int index = cli_cmd_find(priv, priv->argument.vector[0], true);
-        if (index >= 0)
-        {
-            /* コマンドあり */
-            if (priv->cmd[index].handler != CLI_CMD_NULL)
-            {
-                /* コマンド関数がNULLでない場合は、コマンド実行 */
-                result = priv->cmd[index].handler(priv->argument.count, priv->argument.vector);
-            }
-            else
-            {
-                result = -1;  /* コマンド関数未登録 */
-            }
-        }
-        else
-        {
-            result = 1;   /* コマンドなし */
-        }
-    }
-
-    return result;
-}
-
-/**
- * @brief コマンド登録
- * @param name    登録コマンドの名称
- * @param handler コマンド実行時に呼び出されるハンドラ
- * @return 処理結果
- */
-int cli_cmd_register(cli_context_t *ctx, const char *name, cmd_handler_t handler)
-{
-    int result = -1;
-
-    if ((ctx == NULL) || (name == NULL) || (handler == NULL)) return result;
-
-    cli_private_t *priv = get_priv(ctx);
-
-    int index = cli_cmd_find(priv, name, true);
-
-    if (index >= 0)
-    {
-        /* 同名のコマンドが登録されている場合は、登録失敗 */
-        result = 1;
-    }
-    else
-    {
-        /* 空きを探す */
-        index = cli_cmd_find(priv, name, false);
-        if (index >= 0)
-        {
-            /* コマンド登録 */
-            snprintf(&priv->cmd[index].name[0], sizeof(priv->cmd[index].name), "%s", name);
-            priv->cmd[index].handler = handler;
-            priv->cmd[index].is_used = true;
-    
-            result = 0;     /* 登録成功 */
-        }
-        else
-        {
-            result = 1;     /* 空きなし */
-        }
-    }
-
-    return result;
-}
-
-/**
- * @brief コマンド登録解除
- * @param name 登録解除するコマンドの名称
- * @return 処理結果
- */
-int cli_cmd_unregister(cli_context_t *ctx, const char *name)
-{
-    int result = -1;
-
-    if ((ctx == NULL) || (name == NULL)) return result;
-
-    cli_private_t *priv = get_priv(ctx);
-
-    int index = cli_cmd_find(priv, name, true);
-
-    if (index >= 0)
-    {
-        /* コマンド削除 */
-        memset(&priv->cmd[index].name[0], '\0', sizeof(priv->cmd[index].name));
-        priv->cmd[index].handler = CLI_CMD_NULL;
-        priv->cmd[index].is_used = false;
-
-        result = 0;
-    }
-    else
-    {
-        result = 1;
-    }
-
-    return result;
-}
-
-/**
- * @brief cmd検索
- * @param ctx CLIコンテキスト
- * @param name コマンド名
- * @param is_used 登録されているコマンドを探す場合はtrue、空きを探す場合はfalse
- * @return コマンドテーブルのインデックス(0～) / 見つからなかった(-1)
- */
-static int cli_cmd_find(cli_private_t *priv, const char *name, bool is_used)
-{
-    int index = -1;
-
-    size_t i;
-    bool is_find = false;
-
-    /* 同名のコマンドを探す */
-    for (i = 0; i < CLI_CMD_ENTRY_MAX; i++)
-    {
-        if (is_used == true)
-        {
-            /* 登録されているコマンドを探す場合は、同名のコマンドが登録されているかを探す */
-            if ((priv->cmd[i].is_used == true) && (strcmp(name, priv->cmd[i].name) == 0))
-            {
-                /* コマンドあり */
-                is_find = true;
-                break;
-            }
-        }
-        else
-        {
-            /* 空きを探す場合は、同名のコマンドが登録されていないかを探す */
-            if ((priv->cmd[i].is_used == false) && (strcmp(name, priv->cmd[i].name) != 0))
-            {
-                /* 空きあり */
-                is_find = true;
-                break;
-            }
-        }
-    }
-
-    if (is_find == true)
-    {
-        /* 一致するコマンドあり */
-        index = i;
-    }
-
-    return index;
-}
 
 /**
  * @brief プロンプト設定

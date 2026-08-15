@@ -25,11 +25,11 @@
 
 /**
  * @brief CLIコマンドハンドラ型
- * @param argc コマンド引数の数
- * @param argv コマンド引数を格納する文字列配列
+ * @param argc コマンドライン引数の数
+ * @param argv コマンドライン引数を格納する文字列配列
  * @return 処理結果
  */
-typedef int (*cmd_handler_t)(int argc, char **argv);
+typedef int (*command_handler_t)(int argc, char **argv);
 
 /**
  * @brief CLI用データ出力コールバック型
@@ -46,8 +46,17 @@ typedef struct
 
 typedef struct
 {
+    const char *name;
+    command_handler_t handler;
+} cli_command_t;
+
+typedef struct
+{
     const char *prompt;
     io_write_cb_t io_write_cb;
+
+    cli_command_t *command_list;
+    uint16_t list_size;
 
     uint32_t max_line_size;
     uint32_t max_output_size;
@@ -90,21 +99,6 @@ int cli_begin(cli_context_t *ctx, const char *message);
  * @return 処理結果
  */
 int cli_input_char(cli_context_t *ctx, char c);
-
-/**
- * @brief コマンド登録
- * @param name    登録コマンドの名称
- * @param handler コマンド実行時に呼び出されるハンドラ
- * @return 処理結果
- */
-int cli_cmd_register(cli_context_t *ctx, const char *name, cmd_handler_t handler);
-
-/**
- * @brief コマンド登録解除
- * @param name 登録解除するコマンドの名称
- * @return 処理結果
- */
-int cli_cmd_unregister(cli_context_t *ctx, const char *name);
 
 
 /********************
