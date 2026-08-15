@@ -41,7 +41,7 @@ typedef int (*io_write_cb_t)(const char *p, uint16_t s);
 
 typedef struct
 {
-    uint32_t opaque[1536];
+    uint32_t opaque[32];
 } cli_context_t;
 
 typedef struct
