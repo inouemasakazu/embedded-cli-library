@@ -430,7 +430,7 @@ static int cli_command_execute(cli_private_t *priv)
         }
     }
 
-    return -1;
+    return 1;
 }
 
 /**
