@@ -366,7 +366,7 @@ static void cli_textline_insert_text(cli_private_t *priv, uint32_t pos, const ch
     size_t line_len = strlen((const char *)priv->text.line);
     size_t new_len  = line_len + in_len;
 
-    char *p = priv->text.line;
+    char *p = (char *)priv->text.line;
 
     if (new_len <= (priv->text.max_size - 1))
     {
