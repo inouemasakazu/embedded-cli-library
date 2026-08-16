@@ -1,6 +1,6 @@
 /****************************************************************************************************
  * @file    cli_editor.h
- * @brief   Command Line編集
+ * @brief   テキストデータの制御機能
  * @details 外部公開するAPI、型定義、マクロを定義する。
  *
  * @author  Masakazu Inoue
@@ -12,8 +12,6 @@
 /****************************************************************************************************
  * Public include
  ****************************************************************************************************/
-#include "../inc/cli.h"
-
 #include "cli_private.h"
 
 /****************************************************************************************************
@@ -31,7 +29,7 @@
 /*** ASCiiコード(図形文字) ***/
 #define SPC                 ' '     /* 空白文字 */
 
-#define HISTORY_BROWSE_UNREAD       -1
+#define HISTORY_BROWSE_UNREAD       -1          /* 履歴は未閲覧 */
 
 /****************************************************************************************************
  * Public typedef
@@ -48,7 +46,7 @@
  /**
  * @brief キャラクタ追加
  *        テキスト行のカーソル位置にキャラクタを追加する
- * @param priv テキストラインデータへのポインタ
+ * @param priv 制御データ(context)のポインタ
  * @param c    キャラクタ
  */
 void cli_textline_add_char(cli_private_t *priv, char c);
@@ -56,44 +54,25 @@ void cli_textline_add_char(cli_private_t *priv, char c);
 /**
  * @brief キャラクタ消去
  *        テキスト行のカーソル位置からキャラクタを消去する
- * @param priv テキストラインデータへのポインタ
+ * @param priv 制御データ(context)のポインタ
  */
 void cli_textline_delete_char(cli_private_t *priv);
 
 /**
  * @brief テキスト消去
  *        テキスト行のすべてのテキストを消去する
- * @param priv テキストラインデータへのポインタ
+ * @param priv 制御データ(context)のポインタ
  */
 void cli_textline_delete_text(cli_private_t *priv);
 
 /**
  * @brief テキスト保存
- *        引数textを履歴データとして保存する。
- * @param priv テキストラインデータへのポインタ
+ *        履歴データとして、引数textの保存を行う。
+ * @param priv 制御データ(context)のポインタ
  * @param text テキストのポインタ
  */
 void cli_textline_storage_text(cli_private_t *priv, const char *text);
 
-/**
- * @brief カーソル右移動
- *        テキスト行上のカーソル位置を右に移動する
- * @param priv テキストラインデータへのポインタ
- */
-void cli_textline_cursor_right(cli_private_t *priv);
-
-/**
- * @brief カーソル左移動
- *        テキスト行上のカーソル位置を左に移動する
- * @param priv テキストラインデータへのポインタ
- */
-void cli_textline_cursor_left(cli_private_t *priv);
-
-/**
- * @brief 改行処理
- * @param priv テキストラインデータへのポインタ
- */
-void cli_textline_break(cli_private_t *priv);
 
 /********************
  * Setter functions
@@ -101,12 +80,17 @@ void cli_textline_break(cli_private_t *priv);
 
 /**
  * @brief 履歴設定
- *        引数textを履歴データとして設定する。
- * @param priv テキストラインデータへのポインタ
+ *        履歴用の循環バッファに引数textの設定処理を行う。
+ * @param priv 制御データ(context)のポインタ
  * @param text テキストのポインタ
  */
 void cli_textline_set_history(cli_private_t *priv, const char *text);
 
+/**
+ * @brief カーソル位置の設定
+ * @param priv 制御データ(context)のポインタ
+ * @param pos  設定するカーソル位置
+ */
 void cli_textline_set_cursor_pos(cli_private_t *priv, uint32_t pos);
 
 
@@ -117,7 +101,7 @@ void cli_textline_set_cursor_pos(cli_private_t *priv, uint32_t pos);
 /**
  * @brief 履歴取得(古い履歴を遡る)
  *        履歴としてストレージしているテキストデータを、新しいデータから、古いデータの順に呼び出す。
- * @param priv テキストラインデータへのポインタ
+ * @param priv 制御データ(context)のポインタ
  * @return     テキストのポインタ
  */
 const char *cli_textline_get_history_prev(cli_private_t *priv);
@@ -125,12 +109,42 @@ const char *cli_textline_get_history_prev(cli_private_t *priv);
 /**
  * @brief 履歴取得(新しい履歴に進む)
  *        履歴としてストレージしているテキストデータを、古いデータから、新しいデータの順に呼び出す。
- * @param priv テキストラインデータへのポインタ
+ * @param priv 制御データ(context)のポインタ
  * @return     テキストのポインタ
  */
 const char *cli_textline_get_history_next(cli_private_t *priv);
 
+/**
+ * @brief カーソル位置の取得
+ * @param priv 制御データ(context)のポインタ
+ * @return 現在のカーソル位置
+ */
 uint32_t cli_textline_get_cursor_pos(cli_private_t *priv);
+
+
+/********************
+ * Other functions
+ ********************/
+
+/**
+ * @brief カーソル右移動
+ *        テキスト行上のカーソル位置を右に移動する
+ * @param priv 制御データ(context)のポインタ
+ */
+void cli_textline_cursor_right(cli_private_t *priv);
+
+/**
+ * @brief カーソル左移動
+ *        テキスト行上のカーソル位置を左に移動する
+ * @param priv 制御データ(context)のポインタ
+ */
+void cli_textline_cursor_left(cli_private_t *priv);
+
+/**
+ * @brief 改行処理
+ * @param priv 制御データ(context)のポインタ
+ */
+void cli_textline_break(cli_private_t *priv);
 
 
 #endif  /* __CLI_EDIOTR_H__ */

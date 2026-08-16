@@ -1,7 +1,7 @@
 /****************************************************************************************************
  * @file    cli_editor.c
- * @brief   Command Line編集
- * @details このファイルではCLIが保持するCommand Lineデータの編集処理に関するモジュールを定義。
+ * @brief   テキストデータの制御機能
+ * @details このファイルでは、テキストデータの作成・編集・保存処理に関した機能を定義している。
  *
  * @author  Masakazu Inoue
  * @date    2026/07/04          新規作成
@@ -11,8 +11,6 @@
  * Private include
  ****************************************************************************************************/
 #include "cli_editor.h"
-
-#include "../inc/cli_io.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -40,7 +38,7 @@ static const char *cli_textline_history_pull(cli_private_t *priv, uint32_t index
 /**
  * @brief キャラクタ追加
  *        テキスト行のカーソル位置にキャラクタを追加する
- * @param priv テキストラインデータへのポインタ
+ * @param priv 制御データ(context)のポインタ
  * @param c    キャラクタ
  */
 void cli_textline_add_char(cli_private_t *priv, char c)
@@ -80,7 +78,7 @@ void cli_textline_add_char(cli_private_t *priv, char c)
 /**
  * @brief キャラクタ消去
  *        テキスト行のカーソル位置からキャラクタを消去する
- * @param priv テキストラインデータへのポインタ
+ * @param priv 制御データ(context)のポインタ
  */
 void cli_textline_delete_char(cli_private_t *priv)
 {
@@ -112,7 +110,7 @@ void cli_textline_delete_char(cli_private_t *priv)
 /**
  * @brief テキスト消去
  *        テキスト行のすべてのテキストを消去する
- * @param priv テキストラインデータへのポインタ
+ * @param priv 制御データ(context)のポインタ
  */
 void cli_textline_delete_text(cli_private_t *priv)
 {
@@ -129,8 +127,8 @@ void cli_textline_delete_text(cli_private_t *priv)
 
 /**
  * @brief テキスト保存
- *        引数textを履歴として保存する。
- * @param priv テキストラインデータへのポインタ
+ *        履歴データとして、引数textの保存を行う。
+ * @param priv 制御データ(context)のポインタ
  * @param text テキストのポインタ
  */
 void cli_textline_storage_text(cli_private_t *priv, const char *text)
@@ -171,114 +169,6 @@ void cli_textline_storage_text(cli_private_t *priv, const char *text)
     }
 }
 
-/**
- * @brief カーソル右移動
- *        テキスト行上のカーソル位置を右に移動する
- * @param priv テキストラインデータへのポインタ
- */
-void cli_textline_cursor_right(cli_private_t *priv)
-{
-    uint32_t cp = cli_textline_get_cursor_pos(priv);
-
-    size_t text_len = strlen((const char *)priv->text.line);
-
-    if (priv->text.cursor < text_len)
-    {
-        cli_textline_set_cursor_pos(priv, (cp + 1));
-    }
-}
-
-/**
- * @brief カーソル左移動
- *        テキスト行上のカーソル位置を左に移動する
- * @param priv テキストラインデータへのポインタ
- */
-void cli_textline_cursor_left(cli_private_t *priv)
-{
-    uint32_t cp = cli_textline_get_cursor_pos(priv);
-
-    if (0 < priv->text.cursor)
-    {
-        cli_textline_set_cursor_pos(priv, (cp - 1));
-    }
-}
-
-/**
- * @brief 履歴データの書き込み
- *        履歴用の循環バッファに引数textの書き込みを行う。
- * @param priv テキストラインデータへのポインタ
- * @param text 書き込みデータのポインタ
- */
-static void cli_textline_history_push(cli_private_t *priv, const char *text)
-{
-    size_t text_len = strlen(text);
-
-    if (0 < text_len)
-    {
-        uint32_t msx_line_size = priv->text.max_size;
-        uint32_t max_history_count = priv->history.max_size / msx_line_size;
-
-        uint32_t offset = msx_line_size * priv->history.write_idx;
-
-        char *p = (char *)priv->history.buffer + offset;
-
-        /* 現在のテキストデータ(終端文字含む)を履歴用バッファにコピー */
-        for (size_t i = 0; i < (text_len + 1); i++)
-        {
-            *(p + i) = *(text + i);
-        }
-
-        priv->history.write_idx = (priv->history.write_idx + 1) % max_history_count;
-    }
-    else
-    {
-        /* There is no text. */
-    }
-}
-
-/**
- * @brief 履歴データの読み込み
- *        履歴用の循環バッファから、指定ポイントのデータを取得する
- *        循環バッファではあるが読み出し位置の更新は行わない
- * @param priv テキストラインデータへのポインタ
- * @param point 循環バッファの指定ポイント
- */
-static const char *cli_textline_history_pull(cli_private_t *priv, uint32_t index)
-{
-    const char *text;
-
-    uint32_t msx_line_size = priv->text.max_size;
-    uint32_t max_history_count = priv->history.max_size / msx_line_size;
-
-    if (max_history_count > index)
-    {
-        uint32_t offset = msx_line_size * index;
-
-        text = (const char *)(priv->history.buffer + offset);
-    }
-    else
-    {
-        text = NULL;
-    }
-
-    return text;
-}
-
-/**
- * @brief 改行処理
- * @param priv テキストラインデータへのポインタ
- */
-void cli_textline_break(cli_private_t *priv)
-{
-    size_t text_len = strlen((const char *)priv->text.line);
-
-    if (0 < text_len)
-    {
-        /* テキストデータをすべて消去 */
-        cli_textline_delete_text(priv);
-    }
-}
-
 
 /********************
  * Setter functions
@@ -286,8 +176,8 @@ void cli_textline_break(cli_private_t *priv)
 
 /**
  * @brief 履歴設定
- *        引数textを履歴データとして設定する。
- * @param priv テキストラインデータへのポインタ
+ *        履歴用の循環バッファに引数textの設定処理を行う。
+ * @param priv 制御データ(context)のポインタ
  * @param text テキストのポインタ
  */
 void cli_textline_set_history(cli_private_t *priv, const char *text)
@@ -308,10 +198,16 @@ void cli_textline_set_history(cli_private_t *priv, const char *text)
     }
 }
 
+/**
+ * @brief カーソル位置の設定
+ * @param priv 制御データ(context)のポインタ
+ * @param pos  設定するカーソル位置
+ */
 void cli_textline_set_cursor_pos(cli_private_t *priv, uint32_t pos)
 {
     priv->text.cursor = pos;
 }
+
 
 /********************
  * Getter functions
@@ -320,7 +216,7 @@ void cli_textline_set_cursor_pos(cli_private_t *priv, uint32_t pos)
 /**
  * @brief 履歴取得(古い履歴に遡る)
  *        履歴としてストレージしているテキストデータを、新しいデータから、古いデータの順に呼び出す。
- * @param priv テキストラインデータへのポインタ
+ * @param priv 制御データ(context)のポインタ
  * @return     テキストのポインタ
  */
 const char *cli_textline_get_history_prev(cli_private_t *priv)
@@ -354,7 +250,7 @@ const char *cli_textline_get_history_prev(cli_private_t *priv)
 /**
  * @brief 履歴取得(新しい履歴に進む)
  *        履歴としてストレージしているテキストデータを、古いデータから、新しいデータの順に呼び出す。
- * @param priv テキストラインデータへのポインタ
+ * @param priv 制御データ(context)のポインタ
  * @return     テキストのポインタ
  */
 const char *cli_textline_get_history_next(cli_private_t *priv)
@@ -384,7 +280,142 @@ const char *cli_textline_get_history_next(cli_private_t *priv)
     return text;
 }
 
+/**
+ * @brief カーソル位置の取得
+ * @param priv 制御データ(context)のポインタ
+ * @return 現在のカーソル位置
+ */
 uint32_t cli_textline_get_cursor_pos(cli_private_t *priv)
 {
     return priv->text.cursor;
+}
+
+
+/********************
+ * Other functions
+ ********************/
+
+/**
+ * @brief カーソル右移動
+ *        テキスト行上のカーソル位置を右に移動する
+ * @param priv 制御データ(context)のポインタ
+ */
+void cli_textline_cursor_right(cli_private_t *priv)
+{
+    uint32_t cp = cli_textline_get_cursor_pos(priv);
+
+    size_t text_len = strlen((const char *)priv->text.line);
+
+    if (priv->text.cursor < text_len)
+    {
+        cli_textline_set_cursor_pos(priv, (cp + 1));
+    }
+}
+
+/**
+ * @brief カーソル左移動
+ *        テキスト行上のカーソル位置を左に移動する
+ * @param priv 制御データ(context)のポインタ
+ */
+void cli_textline_cursor_left(cli_private_t *priv)
+{
+    uint32_t cp = cli_textline_get_cursor_pos(priv);
+
+    if (0 < priv->text.cursor)
+    {
+        cli_textline_set_cursor_pos(priv, (cp - 1));
+    }
+}
+
+/**
+ * @brief 改行処理
+ * @param priv 制御データ(context)のポインタ
+ */
+void cli_textline_break(cli_private_t *priv)
+{
+    size_t text_len = strlen((const char *)priv->text.line);
+
+    if (0 < text_len)
+    {
+        /* テキストデータをすべて消去 */
+        cli_textline_delete_text(priv);
+    }
+}
+
+
+/********************
+ * Static functions
+ ********************/
+
+/**
+ * @brief 履歴データの書き込み
+ *        履歴用循環バッファの最新書き込み位置に、引数textの書き込みを行う。
+ * @param priv 制御データ(context)のポインタ
+ * @param text 書き込みデータのポインタ
+ *
+ * @note
+ * 履歴用バッファは「固定長の２次元配列」として、メモリ領域を扱う。
+ * 例えば、テキスト行のサイズ長が32byte、保存できる履歴の最大件数が2件の場合、履歴用バッファは64byteのメモリ領域を要求する。
+ *
+ * index[0](32byte) = { ------ text1\0 ------ },
+ * index[1](32byte) = { ------ text2\0 ------ },
+ *
+ * 履歴用バッファ(64byte) = { index[0](32byte), index[1](32byte) }
+ *
+ * このとき、各indexに書き込むtxetデータのサイズに関わらず、indexはテキスト行のサイズ=32byte毎に区切られる。
+ */
+static void cli_textline_history_push(cli_private_t *priv, const char *text)
+{
+    size_t text_len = strlen(text);
+
+    if (0 < text_len)
+    {
+        uint32_t msx_line_size = priv->text.max_size;
+        uint32_t max_history_count = priv->history.max_size / msx_line_size;
+
+        uint32_t offset = msx_line_size * priv->history.write_idx;
+
+        char *p = (char *)priv->history.buffer + offset;
+
+        /* 現在のテキストデータ(終端文字含む)を履歴用バッファにコピー */
+        for (size_t i = 0; i < (text_len + 1); i++)
+        {
+            *(p + i) = *(text + i);
+        }
+
+        priv->history.write_idx = (priv->history.write_idx + 1) % max_history_count;
+    }
+    else
+    {
+        /* There is no text. */
+    }
+}
+
+/**
+ * @brief 履歴データの読み込み
+ *        引数indexが示す循環バッファ内のtextデータの読み込みを行う。
+ *        循環バッファではあるが、読み込み時に読み込み位置の更新はしない。
+ * @param priv 制御データ(context)のポインタ
+ * @param index 循環バッファの読み込み位置
+ * @return      テキストのポインタ
+ */
+static const char *cli_textline_history_pull(cli_private_t *priv, uint32_t index)
+{
+    const char *text = NULL;
+
+    uint32_t msx_line_size = priv->text.max_size;
+    uint32_t max_history_count = priv->history.max_size / msx_line_size;
+
+    if (max_history_count > index)
+    {
+        uint32_t offset = msx_line_size * index;
+
+        text = (const char *)(priv->history.buffer + offset);
+    }
+    else
+    {
+        text = NULL;
+    }
+
+    return text;
 }
