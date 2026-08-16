@@ -6,8 +6,8 @@
  * @author  Masakazu Inoue
  * @date    2026/07/04          新規作成
  ****************************************************************************************************/
-#ifndef __CLI_EDIOTR_H__
-#define __CLI_EDIOTR_H__
+#ifndef __CLI_TEXTLINE_H__
+#define __CLI_TEXTLINE_H__
 
 /****************************************************************************************************
  * Public include
@@ -17,17 +17,6 @@
 /****************************************************************************************************
  * Public define
  ****************************************************************************************************/
-/*** ASCiiコード(制御文字) ***/
-#define NUL                 '\0'    /* null文字 */
-#define BS                  '\b'    /* 後退 */
-#define HT                  '\t'    /* 水平タブ */
-#define LF                  '\n'    /* 改行 */
-#define CR                  '\r'    /* 復帰 */
-#define ESC                 '\e'    /* エスケープ */
-#define DEL                 0x7f    /* 削除 */
-
-/*** ASCiiコード(図形文字) ***/
-#define SPC                 ' '     /* 空白文字 */
 
 #define HISTORY_BROWSE_UNREAD       -1          /* 履歴は未閲覧 */
 
@@ -155,4 +144,4 @@ void cli_textline_cursor_left(cli_private_t *priv);
 void cli_textline_break(cli_private_t *priv);
 
 
-#endif  /* __CLI_EDIOTR_H__ */
+#endif  /* __CLI_TEXTLINE_H__ */
