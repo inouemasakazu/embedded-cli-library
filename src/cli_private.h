@@ -50,8 +50,8 @@ typedef struct
     uint8_t *buffer;
     uint32_t max_size;
 
-    uint32_t head;
-    uint32_t tail;
+    uint32_t write_idx;
+    int32_t browse_idx;
 
     uint32_t count;
 } cli_history_t;

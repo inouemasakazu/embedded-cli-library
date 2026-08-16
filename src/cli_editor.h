@@ -31,6 +31,8 @@
 /*** ASCiiコード(図形文字) ***/
 #define SPC                 ' '     /* 空白文字 */
 
+#define HISTORY_BROWSE_UNREAD       -1
+
 /****************************************************************************************************
  * Public typedef
  ****************************************************************************************************/
@@ -66,6 +68,14 @@ void cli_textline_delete_char(cli_private_t *priv);
 void cli_textline_delete_text(cli_private_t *priv);
 
 /**
+ * @brief テキスト保存
+ *        引数textを履歴データとして保存する。
+ * @param priv テキストラインデータへのポインタ
+ * @param text テキストのポインタ
+ */
+void cli_textline_storage_text(cli_private_t *priv, const char *text);
+
+/**
  * @brief カーソル右移動
  *        テキスト行上のカーソル位置を右に移動する
  * @param priv テキストラインデータへのポインタ
@@ -80,43 +90,47 @@ void cli_textline_cursor_right(cli_private_t *priv);
 void cli_textline_cursor_left(cli_private_t *priv);
 
 /**
- * @brief 履歴追加
- *        引数のtextを履歴として履歴用の循環バッファに保存する。
- * @param priv テキストラインデータへのポインタ
- * @param text 保存するテキストデータのポインタ
- */
-void cli_textline_add_history(cli_private_t *priv, const char *text);
-
-/**
- * @brief 履歴取得
- *        履歴用の循環バッファから、指定ポイントのデータを取得する
- *        循環バッファではあるが読み出し位置の更新は行わない
- * @param priv テキストラインデータへのポインタ
- * @param point 循環バッファの指定ポイント
- */
-const char *cli_textline_history_pull(cli_private_t *priv, uint32_t point);
-
-/**
- * @brief 履歴呼び出し(古い履歴を遡る)
- *        履歴としてストレージしているデータを、新しいデータから、古いデータの順に呼び出す。
- *        呼び出したデータは、テキスト行にコピーする。
- * @param priv テキストラインデータへのポインタ
- */
-void cli_textline_history_prev(cli_private_t *priv);
-
-/**
- * @brief 履歴呼び出し(新しい履歴に進む)
- *        履歴としてストレージしているデータを、古いデータから、新しいデータの順に呼び出す。
- *        呼び出したデータは、テキスト行にコピーする。
- * @param priv テキストラインデータへのポインタ
- */
-void cli_textline_history_next(cli_private_t *priv);
-
-/**
  * @brief 改行処理
  * @param priv テキストラインデータへのポインタ
  */
 void cli_textline_break(cli_private_t *priv);
+
+/********************
+ * Setter functions
+ ********************/
+
+/**
+ * @brief 履歴設定
+ *        引数textを履歴データとして設定する。
+ * @param priv テキストラインデータへのポインタ
+ * @param text テキストのポインタ
+ */
+void cli_textline_set_history(cli_private_t *priv, const char *text);
+
+void cli_textline_set_cursor_pos(cli_private_t *priv, uint32_t pos);
+
+
+/********************
+ * Getter functions
+ ********************/
+
+/**
+ * @brief 履歴取得(古い履歴を遡る)
+ *        履歴としてストレージしているテキストデータを、新しいデータから、古いデータの順に呼び出す。
+ * @param priv テキストラインデータへのポインタ
+ * @return     テキストのポインタ
+ */
+const char *cli_textline_get_history_prev(cli_private_t *priv);
+
+/**
+ * @brief 履歴取得(新しい履歴に進む)
+ *        履歴としてストレージしているテキストデータを、古いデータから、新しいデータの順に呼び出す。
+ * @param priv テキストラインデータへのポインタ
+ * @return     テキストのポインタ
+ */
+const char *cli_textline_get_history_next(cli_private_t *priv);
+
+uint32_t cli_textline_get_cursor_pos(cli_private_t *priv);
 
 
 #endif  /* __CLI_EDIOTR_H__ */
