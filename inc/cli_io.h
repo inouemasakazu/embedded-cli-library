@@ -14,7 +14,8 @@
  ****************************************************************************************************/
 #include "cli.h"
 
- #include <stdint.h>
+#include <stdint.h>
+#include <stdarg.h>
 
 /****************************************************************************************************
  * Public define
@@ -41,13 +42,23 @@
 int cli_io_write(cli_context_t *ctx, const char *p, uint16_t s);
 
 /**
- * @brief CLI用書式付き文字列の標準出力
- *        printfと同様のフォーマットで書式化文字列の出力を行う
- * @param  format 出力するときの書式を含む文字列
- * @param  ...    出力する値のリスト
- * @return 出力byte数 / 失敗(-1)
+ * @brief 書式付き文字列の出力
+ *        標準ライブラリのprintfと同様の機能を有する。
+ * @param ctx 制御データ(context)のポインタ
+ * @param format 出力するときの書式を含む文字列
+ * @param ...    出力する値のリスト
+ * @return 出力した文字数、または負の値(エラー時)
  */
 int cli_printf(cli_context_t *ctx, const char *format, ...);
+
+/**
+ * @brief 可変個引数リストを書式付で文字列に出力
+ *        printfと同様のフォーマットで書式化文字列の出力を行う
+ * @param  format 出力するときの書式を含む文字列
+ * @param  arg    引数並びへのポインタ
+ * @return 出力byte数 / 失敗(-1)
+ */
+int cli_vprintf(cli_context_t *ctx, const char *format, va_list arg);
 
 /**
  * @brief CLI用文字の標準出力

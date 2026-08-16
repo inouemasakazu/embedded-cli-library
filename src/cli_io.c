@@ -15,7 +15,6 @@
 #include "cli_private.h"
 
 #include <stdio.h>
-#include <stdarg.h>
 
 /****************************************************************************************************
  * Private define
@@ -35,6 +34,7 @@
 
 /**
  * @brief CLI用データ書き込みCB処理の実行
+ * @param ctx 制御データ(context)のポインタ
  * @param p 出力データのポインタ
  * @param s 出力データサイズ
  * @return 正常(0) / 失敗(-1) / CB未登録(1)
@@ -67,54 +67,67 @@ int cli_io_write(cli_context_t *ctx, const char *p, uint16_t s)
 }
 
 /**
- * @brief CLI用書式付き文字列の標準出力
- *        printfと同様のフォーマットで書式化文字列の出力を行う
- * @param  format 出力するときの書式を含む文字列
- * @param  ...    出力する値のリスト
- * @return 出力byte数 / 失敗(-1)
+ * @brief 書式付き文字列の出力
+ *        標準ライブラリのprintfと同様の機能を有する。
+ * @param ctx 制御データ(context)のポインタ
+ * @param format 出力するときの書式を含む文字列
+ * @param ...    出力する値のリスト
+ * @return 出力した文字数、または負の値(エラー時)
  */
 int cli_printf(cli_context_t *ctx, const char * format, ...)
 {
+    if (ctx == NULL) return -1;
+
     int success = -1;
     va_list arg;
 
-    if (ctx == NULL)
+    va_start(arg, format);
+    success = cli_vprintf(ctx, format, arg);
+    va_end(arg);
+
+    return success;
+}
+
+/**
+ * @brief 可変個引数リストを書式付で文字列に出力
+ * @param ctx 制御データ(context)のポインタ
+ * @param format 出力するときの書式を含む文字列
+ * @param arg    引数並びへのポインタ
+ * @return 出力した文字数、または負の値(エラー時)
+ */
+int cli_vprintf(cli_context_t *ctx, const char *format, va_list arg)
+{
+    if (ctx == NULL) return -1;
+
+    cli_private_t *priv = get_priv(ctx);
+
+    int success = -1;
+    int s = 0;
+    int n = priv->output.max_size;      /* 最大文字数(終端文字(\0)を含む) */
+
+    s = vsnprintf((char *)priv->output.buf, n, format, arg);
+
+    if (0 < s)
     {
-        success = -1;
+        if (n <= s)
+        {
+            /* bufサイズを超過しているので切り詰める */
+            s = (n - 1);
+            priv->output.buf[s] = '\0';
+        }
+
+        /* 出力処理実行 */
+        success = cli_io_write(ctx, (const char *)priv->output.buf, ((uint16_t)s));
+        if (success == 0)
+        {
+            /* 処理結果として出力した文字数(byte)を返す */
+            success = s;
+        }
     }
     else
     {
-        cli_private_t *priv = get_priv(ctx);
-
-        int s = 0;
-        int n = priv->output.max_size;     /* 最大文字数(終端文字(\0)を含む) */
-
-        va_start(arg, format);
-        s = vsnprintf((char *)priv->output.buf, n, format, arg);
-        va_end(arg);
-
-        if (0 < s)
-        {
-            if (n <= s)
-            {
-                /* 出力用bufサイズをoverしているので切り詰める */
-                s = (n - 1);
-                priv->output.buf[s] = '\0';
-            }
-
-            /* 出力処理実行 */
-            success = cli_io_write(ctx, (const char *)priv->output.buf, ((uint16_t)s));
-            if (success == 0)
-            {
-                /* 処理結果として出力byte数を返す */
-                success = s;
-            }
-        }
-        else
-        {
-            /* 表現形式エラー */
-            success = -1;
-        }
+        /* 表現形式エラー */
+        success = -1;
     }
 
     return success;
@@ -123,6 +136,7 @@ int cli_printf(cli_context_t *ctx, const char * format, ...)
 /**
  * @brief CLI用文字の標準出力
  *        1byte単位でデータを出力する
+ * @param ctx 制御データ(context)のポインタ
  * @param c 出力する文字
  * @return 正常(0) / 失敗(-1)
  */
