@@ -31,6 +31,7 @@
  * Private Functions
  ****************************************************************************************************/
 
+static void cli_textline_insert_text(cli_private_t *priv, uint32_t pos, const char *in_text);
 static void cli_textline_history_push(cli_private_t *priv, const char *text);
 static const char *cli_textline_history_pull(cli_private_t *priv, uint32_t index);
 
@@ -48,30 +49,34 @@ void cli_textline_add_char(cli_private_t *priv, char c)
     char_buf[0] = (uint8_t)c;
     char_buf[1] = 0;
 
-    const char *in_text = (const char *)char_buf;
+    const char *text = (const char *)char_buf;
 
-    size_t line_len = strlen((const char *)priv->text.line);
-    size_t in_len   = strlen(in_text);
-    size_t new_len  = line_len + in_len;
+    size_t text_len   = strlen(text);
 
-    uint32_t pos = cli_textline_get_cursor_pos(priv);
-
-    if (new_len <= (priv->text.max_size - 1))
+    if (0 < text_len)
     {
-        /* 現在のカーソル位置にキャラクタを追加するため、カーソル位置より後ろのデータをずらす */
-        for (size_t i = new_len; i >= (pos + in_len) ; i--)
-        {
-            priv->text.line[i] = priv->text.line[i - in_len];
-        }
-
-        /* add character */
-        priv->text.line[pos] = in_text[0];
-
-        cli_textline_set_cursor_pos(priv, (pos + 1));
+        cli_textline_add_text(priv, text);
     }
-    else
+}
+
+/**
+ * @brief テキスト追加
+ *        テキスト行のカーソル位置にテキストを追加する
+ * @param priv 制御データ(context)のポインタ
+ * @param text テキストのポインタ
+ */
+void cli_textline_add_text(cli_private_t *priv, const char *text)
+{
+    size_t text_len   = strlen(text);
+
+    if (0 < text_len)
     {
-        /* buffer full */
+        uint32_t pos = cli_textline_get_cursor_pos(priv);
+
+        /* テキストを挿入 */
+        cli_textline_insert_text(priv, pos, text);
+
+        cli_textline_set_cursor_pos(priv, (pos + text_len));
     }
 }
 
@@ -346,6 +351,38 @@ void cli_textline_break(cli_private_t *priv)
 /********************
  * Static functions
  ********************/
+
+/**
+ * @brief テキストデータを挿入
+ * @param priv 制御データ(context)のポインタ
+ * @param pos  挿入位置
+ * @param in_text 挿入するテキストのポインタ
+ */
+static void cli_textline_insert_text(cli_private_t *priv, uint32_t pos, const char *in_text)
+{
+    if (in_text == NULL) return;
+
+    size_t in_len   = strlen(in_text);
+    size_t line_len = strlen((const char *)priv->text.line);
+    size_t new_len  = line_len + in_len;
+
+    char *p = priv->text.line;
+
+    if (new_len <= (priv->text.max_size - 1))
+    {
+        /* 現在のカーソル位置にキャラクタを追加するため、カーソル位置より後ろのデータをずらす */
+        for (size_t i = new_len; i >= (pos + in_len) ; i--)
+        {
+            *(p + i) = *(p + (i - in_len));
+        }
+
+        /* テキストを挿入 */
+        for (size_t i = pos; (i - pos) < in_len; i++)
+        {
+            *(p + i) = *(in_text + (i - pos));
+        }
+    }
+}
 
 /**
  * @brief 履歴データの書き込み

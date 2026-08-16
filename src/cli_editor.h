@@ -43,13 +43,21 @@
  * Public Functions
  ****************************************************************************************************/
 
- /**
+/**
  * @brief キャラクタ追加
  *        テキスト行のカーソル位置にキャラクタを追加する
  * @param priv 制御データ(context)のポインタ
  * @param c    キャラクタ
  */
 void cli_textline_add_char(cli_private_t *priv, char c);
+
+/**
+ * @brief テキスト追加
+ *        テキスト行のカーソル位置にテキストを追加する
+ * @param priv 制御データ(context)のポインタ
+ * @param text テキストのポインタ
+ */
+void cli_textline_add_text(cli_private_t *priv, const char *text);
 
 /**
  * @brief キャラクタ消去
