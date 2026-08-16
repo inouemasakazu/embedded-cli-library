@@ -326,11 +326,43 @@ static void cli_event_handler(cli_private_t *priv, uint16_t event, uint32_t parm
         }
         else if (event ==4)
         {
-            cli_textline_history_prev(priv);
+            const char *text = cli_textline_get_history_prev(priv);
+            if (text)
+            {
+                /* 現在のテキスト行は消去 */
+                cli_textline_delete_text(priv);
+
+                char *p = (char *)priv->text.line;
+
+                size_t len = strlen(text);
+
+                for (size_t i = 0; i < (len + 1); i++)
+                {
+                    *(p + i) = *(text + i);
+                }
+
+                cli_textline_set_cursor_pos(priv, len);
+            }
         }
         else if (event == 5)
         {
-            cli_textline_history_next(priv);
+            const char *text = cli_textline_get_history_next(priv);
+            if (text)
+            {
+                /* 現在のテキスト行は消去 */
+                cli_textline_delete_text(priv);
+
+                char *p = (char *)priv->text.line;
+
+                size_t len = strlen(text);
+
+                for (size_t i = 0; i < (len + 1); i++)
+                {
+                    *(p + i) = *(text + i);
+                }
+
+                cli_textline_set_cursor_pos(priv, len);
+            }
         }
         else if (event == 6)
         {
@@ -369,8 +401,8 @@ static void cli_enter(cli_private_t *priv)
 
     if (0 < text_len)
     {
-        /* 現在のテキストを履歴用バッファに保存 */
-        cli_textline_add_history(priv, (const char *)priv->text.line);
+        /* 現在のテキストを保存 */
+        cli_textline_storage_text(priv, (const char *)priv->text.line);
 
         /* テキストをトークン化 */
         cli_tokenizer(priv);
