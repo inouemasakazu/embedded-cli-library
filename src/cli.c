@@ -31,7 +31,7 @@
 
 #include "cli_private.h"
 
-#include "cli_editor.h"
+#include "cli_textline.h"
 
 #include <stdio.h>
 #include <string.h>
