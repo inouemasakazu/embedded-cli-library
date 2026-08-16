@@ -322,6 +322,14 @@ static void cli_event_handler(cli_private_t *priv, uint16_t event, uint32_t parm
         }
         else if (event == 3)
         {
+            size_t text_len = strlen((const char *)priv->text.line);
+
+            if (0 < text_len)
+            {
+                /* 現在のテキストを履歴用バッファに保存 */
+                cli_textline_add_history(priv, (const char *)priv->text.line);
+            }
+
             cli_enter(priv);
         }
         else if (event ==4)
@@ -401,9 +409,6 @@ static void cli_enter(cli_private_t *priv)
 
     if (0 < text_len)
     {
-        /* 現在のテキストを保存 */
-        cli_textline_storage_text(priv, (const char *)priv->text.line);
-
         /* テキストをトークン化 */
         cli_tokenizer(priv);
 
