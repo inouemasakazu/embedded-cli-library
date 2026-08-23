@@ -71,8 +71,13 @@ static void cli_event_send(cli_private_t *priv, uint16_t event, uint32_t parm);
 static void cli_event_handler(cli_private_t *priv, uint16_t event, uint32_t parm);
 
 static void cli_enter(cli_private_t *priv);
-static int cli_command_execute(cli_private_t *priv);
+static void cli_command_execute(cli_private_t *priv);
 static void cli_tokenizer(cli_private_t *priv);
+
+int cli_command_register(cli_private_t *priv, const cli_command_t *list, uint16_t size);
+int cli_command_unregister(cli_private_t *priv);
+
+static const cli_command_t *cli_command_find(cli_private_t *priv, const char *name);
 
 
 /**
@@ -104,11 +109,7 @@ int cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace, size_
         cli_set_prompt(ctx, cfg->prompt);
         cli_set_stdout_cb(ctx, cfg->io_write_cb);
 
-        if (cfg->command_list != NULL)
-        {
-            priv->command_list = cfg->command_list;
-            priv->list_size = cfg->list_size;
-        }
+        cli_command_register(priv, cfg->command_list, cfg->list_size);
     }
 
     return success;
@@ -323,6 +324,7 @@ static void cli_event_handler(cli_private_t *priv, uint16_t event, uint32_t parm
         else if (event == 3)
         {
             cli_enter(priv);
+            cli_printf(ctx, "\r\n");
         }
         else if (event ==4)
         {
@@ -365,8 +367,6 @@ static void cli_enter(cli_private_t *priv)
 {
     size_t text_len = strlen((const char *)priv->text.line);
 
-    cli_context_t *ctx = get_public(priv);
-
     if (0 < text_len)
     {
         /* 現在のテキストを履歴用バッファに保存 */
@@ -378,27 +378,12 @@ static void cli_enter(cli_private_t *priv)
         if (0 < priv->argument.count)
         {
             /* コマンド実行 */
-            int success = cli_command_execute(priv);
-            if (success == 1)
-            {
-                /* コマンドがない */
-                cli_printf(ctx, "\r\nError: '%s' command not found\r\n", priv->argument.vector[0]);
-            }
-            else if (success == -1)
-            {
-                /* コマンドの実行エラー */
-                cli_printf(ctx, "\r\nError: command execution failed\r\n");
-            }
-            else
-            {
-                /* DO NOTHING */
-            }
+            cli_command_execute(priv);
         }
     }
 
     /* 改行 */
     cli_textline_break(priv);
-    cli_printf(ctx, "\r\n");
 }
 
 /**
@@ -409,28 +394,32 @@ static void cli_enter(cli_private_t *priv)
  * @return 実行結果
  */
 
-static int cli_command_execute(cli_private_t *priv)
+static void cli_command_execute(cli_private_t *priv)
 {
-    const cli_command_t *list = priv->command_list;
-
     int argc    = priv->argument.count;
     char **argv = priv->argument.vector;
 
-    if ((list == NULL) || (argv == NULL)) return -1;
-    if (argc == 0) return -2;
+    cli_context_t *ctx = get_public(priv);
 
-    for (size_t i = 0; i < priv->list_size; i++)
+    if ((argc != 0) || (argv != NULL))
     {
-        if (strcmp(list[i].name, argv[0]) == 0)
+        const cli_command_t *list = cli_command_find(priv, argv[0]);
+
+        if (list)
         {
-            if (list[i].handler)
+            /* ハンドラの起動 */
+            if (list->handler(argc, argv) != 0)
             {
-                return list[i].handler(argc, argv);
+                cli_printf(ctx, "\r\nError: command execution failed\r\n");
             }
+        }
+        else
+        {
+            cli_printf(ctx, "\r\nError: '%s' command not found\r\n", priv->argument.vector[0]);
         }
     }
 
-    return 1;
+    cli_printf(ctx, "\r\n");
 }
 
 /**
@@ -478,6 +467,10 @@ static void cli_tokenizer(cli_private_t *priv)
     }
 }
 
+
+/********************
+ * Setter functions
+ ********************/
 
 /**
  * @brief プロンプト設定
@@ -534,4 +527,113 @@ int cli_set_stdout_cb(cli_context_t *ctx, io_write_cb_t write_cb)
     }
 
     return success;
+}
+
+/**
+ * @brief コマンドを設定
+ */
+void cli_set_command_list(cli_private_t *priv, const cli_command_t *list)
+{
+    priv->command_list = list;
+}
+
+/**
+ * @brief コマンドの要素数を設定
+ */
+void cli_set_command_list_size(cli_private_t *priv, uint16_t size)
+{
+    priv->list_size = size;
+}
+
+
+/********************
+ * Getter functions
+ ********************/
+
+/**
+ * @brief コマンドを取得
+ */
+const cli_command_t *cli_get_command_list(cli_private_t *priv)
+{
+    return (cli_command_t *)priv->command_list;
+}
+
+/**
+ * @brief コマンドの要素数を取得
+ */
+uint16_t cli_get_command_list_size(cli_private_t *priv)
+{
+    return priv->list_size;
+}
+
+
+/********************
+ * Other functions
+ ********************/
+
+/**
+ * @brief コマンド登録
+ */
+int cli_command_register(cli_private_t *priv, const cli_command_t *list, uint16_t size)
+{
+    if (list == NULL) return -1;
+    if (size == 0) return -1;
+
+    cli_set_command_list(priv, list);
+    cli_set_command_list_size(priv, size);
+
+    return 0;
+}
+
+/**
+ * @brief コマンド登録解除
+ */
+int cli_command_unregister(cli_private_t *priv)
+{
+    cli_set_command_list(priv, NULL);
+    cli_set_command_list_size(priv, 0);
+
+    return 0;
+}
+
+
+/********************
+ * Static functions
+ ********************/
+
+/**
+ * @brief コマンド探索
+ *        登録済みコマンドの登録名称と、引数nameに一致するコマンドの探索を行う。
+ * @param priv 制御データ(context)のポインタ
+ * @param name 探索対象の名称(登録名)を示すポインタ
+ * @return コマンドのポインタ、またはNULLポインタ
+ */
+static const cli_command_t *cli_command_find(cli_private_t *priv, const char *name)
+{
+    if (name == NULL) return NULL;
+
+    const cli_command_t *list = cli_get_command_list(priv);
+    uint16_t list_size        = cli_get_command_list_size(priv);
+
+    uint16_t i = 0;
+
+    if (list != NULL)
+    {
+        for (uint16_t i = 0; i < list_size; i++)
+        {
+            if ((strcmp(list->name, name) == 0) && (list->handler))
+            {
+                /* リスト内にコマンドあり */
+                return (cli_command_t *)list;
+            }
+            else
+            {
+                /* 名称不一致、ハンドラ未登録は一致コマンドなしと判断する */
+            }
+
+            list++;
+    	}
+    }
+
+    return NULL;
 }
