@@ -416,6 +416,7 @@ static void cli_command_execute(cli_private_t *priv)
         else
         {
             cli_printf(ctx, "\r\nError: '%s' command not found\r\n", priv->argument.vector[0]);
+            
         }
     }
 
@@ -615,8 +616,6 @@ static const cli_command_t *cli_command_find(cli_private_t *priv, const char *na
     const cli_command_t *list = cli_get_command_list(priv);
     uint16_t list_size        = cli_get_command_list_size(priv);
 
-    uint16_t i = 0;
-
     if (list != NULL)
     {
         for (uint16_t i = 0; i < list_size; i++)
@@ -632,7 +631,7 @@ static const cli_command_t *cli_command_find(cli_private_t *priv, const char *na
             }
 
             list++;
-    	}
+        }
     }
 
     return NULL;
