@@ -20,9 +20,6 @@
 /****************************************************************************************************
  * Public define
  ****************************************************************************************************/
-#define CLI_CMD_NAME_SIZE   32      /* 32byte cmd name */
-
-#define CLI_CMD_ENTRY_MAX   10
 
 /*** ASCiiコード(制御文字) ***/
 #define NUL                 '\0'    /* null文字 */
@@ -83,13 +80,6 @@ typedef struct
 
 typedef struct
 {
-    char name[CLI_CMD_NAME_SIZE];
-    cmd_handler_t handler;
-    bool is_used;
-} cli_cmd_entry_t;
-
-typedef struct
-{
     const char *prompt;
 
     parse_state_t state;
@@ -101,9 +91,8 @@ typedef struct
 
     /* コマンドライン引数 */
     cli_argument_t argument;
-
-    /* cli cmd structure */
-    cli_cmd_entry_t cmd[CLI_CMD_ENTRY_MAX];
+    cli_command_t *command_list;
+    uint16_t list_size;
 
     /* cli write structure */
     io_write_cb_t io_write_cb;
