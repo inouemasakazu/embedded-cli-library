@@ -1,13 +1,13 @@
 /****************************************************************************************************
- * @file    cli_textline.h
- * @brief   テキスト行の制御機能
+ * @file    cli_text.h
+ * @brief   テキストデータの操作機能
  * @details 外部公開するAPI、型定義、マクロを定義する。
  *
  * @author  Masakazu Inoue
  * @date    2026/07/04          新規作成
  ****************************************************************************************************/
-#ifndef __CLI_TEXTLINE_H__
-#define __CLI_TEXTLINE_H__
+#ifndef __CLI_TEXT_H__
+#define __CLI_TEXT_H__
 
 /****************************************************************************************************
  * Public include
@@ -156,4 +156,4 @@ void cli_text_cursor_left(cli_private_t *priv);
 void cli_text_break(cli_private_t *priv);
 
 
-#endif  /* __CLI_TEXTLINE_H__ */
+#endif  /* __CLI_TEXT_H__ */
