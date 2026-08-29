@@ -19,6 +19,8 @@
  * Private define
  ****************************************************************************************************/
 
+#define HISTORY_BROWSE_UNREAD       -1          /* 履歴データは未閲覧 */
+
 /****************************************************************************************************
  * Private typedef
  ****************************************************************************************************/
@@ -70,12 +72,12 @@ void cli_text_add_text(cli_private_t *priv, const char *text)
 
     if (0 < text_len)
     {
-        uint32_t pos = cli_text_get_cursor_pos(priv);
+        uint32_t cp = cli_text_get_cursor_pos(priv);
 
         /* テキストを挿入 */
-        cli_text_insert_text(priv, pos, text);
+        cli_text_insert_text(priv, cp, text);
 
-        cli_text_set_cursor_pos(priv, (pos + text_len));
+        cli_text_set_cursor_pos(priv, (cp + text_len));
     }
 }
 
@@ -86,24 +88,24 @@ void cli_text_add_text(cli_private_t *priv, const char *text)
  */
 void cli_text_delete_char(cli_private_t *priv)
 {
-    size_t line_len = strlen((const char *)priv->text.current_line);
-    size_t new_len  = 0;
+    char *text = (char *)cli_text_get_current_line(priv);
 
-    uint32_t pos = cli_text_get_cursor_pos(priv);
+    size_t text_len = strlen((const char *)text);
+    size_t new_len  = text_len - 1;
 
-    if ((0 < line_len) && (0 < pos))
+    uint32_t cp = cli_text_get_cursor_pos(priv);
+
+    if ((0 < text_len) && (0 < cp))
     {
-        new_len = line_len - 1;
-
         /* 現在のカーソル位置にキャラクタを追加するため、カーソル位置より後ろのデータをずらす */
-        for (size_t i = pos; i <= new_len; i++)
+        for (size_t i = cp; i <= new_len; i++)
         {
-            priv->text.current_line[i] = priv->text.current_line[i + 1];
+            *(text + i) = *(text + (i + 1));
         }
 
-        priv->text.current_line[new_len] = '\0';
+        *(text + new_len) = '\0';
 
-        cli_text_set_cursor_pos(priv, (pos - 1));
+        cli_text_set_cursor_pos(priv, (cp - 1));
     }
     else
     {
@@ -118,12 +120,13 @@ void cli_text_delete_char(cli_private_t *priv)
  */
 void cli_text_delete_text(cli_private_t *priv)
 {
-    size_t text_len = strlen((const char *)priv->text.current_line);
-    char *p = (char *)priv->text.current_line;
+    char *text = (char *)cli_text_get_current_line(priv);
+
+    size_t text_len = strlen((const char *)text);
 
     for (size_t i = 0; i < text_len; i++)
     {
-        *(p + i) = '\0';
+        *(text + i) = '\0';
     }
 
     cli_text_set_cursor_pos(priv, 0);
@@ -217,6 +220,26 @@ void cli_text_set_cursor_pos(cli_private_t *priv, uint32_t pos)
  ********************/
 
 /**
+ * @brief 現在行のポインタを取得
+ * @param priv 制御データ(context)のポインタ
+ * @return     テキストのポインタ
+ */
+uint8_t *cli_text_get_current_line(cli_private_t *priv)
+{
+    return (uint8_t *)priv->text.current_line;
+}
+
+/**
+ * @brief 現在行の最大バッファサイズを取得
+ * @param priv 制御データ(context)のポインタ
+ * @return     最大バッファサイズ(byte)
+ */
+uint32_t cli_text_get_current_line_max_size(cli_private_t *priv)
+{
+    return priv->text.current_line_max_size;
+}
+
+/**
  * @brief 履歴取得(古い履歴に遡る)
  *        履歴としてストレージしているテキストデータを、新しいデータから、古いデータの順に呼び出す。
  * @param priv 制御データ(context)のポインタ
@@ -305,11 +328,12 @@ uint32_t cli_text_get_cursor_pos(cli_private_t *priv)
  */
 void cli_text_cursor_right(cli_private_t *priv)
 {
+    char *text = (char *)cli_text_get_current_line(priv);
+    size_t text_len = strlen((const char *)text);
+
     uint32_t cp = cli_text_get_cursor_pos(priv);
 
-    size_t text_len = strlen((const char *)priv->text.current_line);
-
-    if (priv->text.cursor_pos < text_len)
+    if (cp < text_len)
     {
         cli_text_set_cursor_pos(priv, (cp + 1));
     }
@@ -324,7 +348,7 @@ void cli_text_cursor_left(cli_private_t *priv)
 {
     uint32_t cp = cli_text_get_cursor_pos(priv);
 
-    if (0 < priv->text.cursor_pos)
+    if (0 < cp)
     {
         cli_text_set_cursor_pos(priv, (cp - 1));
     }
@@ -336,7 +360,8 @@ void cli_text_cursor_left(cli_private_t *priv)
  */
 void cli_text_break(cli_private_t *priv)
 {
-    size_t text_len = strlen((const char *)priv->text.current_line);
+    char *text = (char *)cli_text_get_current_line(priv);
+    size_t text_len = strlen((const char *)text);
 
     if (0 < text_len)
     {
@@ -360,24 +385,25 @@ static void cli_text_insert_text(cli_private_t *priv, uint32_t pos, const char *
 {
     if (in_text == NULL) return;
 
+    char *text = (char *)cli_text_get_current_line(priv);
+    uint32_t text_max_size = cli_text_get_current_line_max_size(priv);
+
     size_t in_len   = strlen(in_text);
-    size_t line_len = strlen((const char *)priv->text.current_line);
-    size_t new_len  = line_len + in_len;
+    size_t text_len = strlen((const char *)text);
+    size_t new_len  = text_len + in_len;
 
-    char *p = (char *)priv->text.current_line;
-
-    if (new_len <= (priv->text.current_line_max_size - 1))
+    if (new_len <= (text_max_size - 1))
     {
         /* 現在のカーソル位置にキャラクタを追加するため、カーソル位置より後ろのデータをずらす */
         for (size_t i = new_len; i >= (pos + in_len) ; i--)
         {
-            *(p + i) = *(p + (i - in_len));
+            *(text + i) = *(text + (i - in_len));
         }
 
         /* テキストを挿入 */
         for (size_t i = pos; (i - pos) < in_len; i++)
         {
-            *(p + i) = *(in_text + (i - pos));
+            *(text + i) = *(in_text + (i - pos));
         }
     }
 }
@@ -405,10 +431,10 @@ static void cli_text_history_push(cli_private_t *priv, const char *text)
 
     if (0 < text_len)
     {
-        uint32_t msx_line_size = priv->text.current_line_max_size;
+        uint32_t text_max_size = cli_text_get_current_line_max_size(priv);
         uint32_t max_history_count = priv->text.history_depth;
 
-        uint32_t offset = msx_line_size * priv->text.history_write_idx;
+        uint32_t offset = text_max_size * priv->text.history_write_idx;
 
         char *p = (char *)priv->text.history_buffer + offset;
 
@@ -438,12 +464,12 @@ static const char *cli_text_history_pull(cli_private_t *priv, uint32_t index)
 {
     const char *text = NULL;
 
-    uint32_t msx_line_size = priv->text.current_line_max_size;
+    uint32_t text_max_size = cli_text_get_current_line_max_size(priv);
     uint32_t max_history_count = priv->text.history_depth;
 
     if (max_history_count > index)
     {
-        uint32_t offset = msx_line_size * index;
+        uint32_t offset = text_max_size * index;
 
         text = (const char *)(priv->text.history_buffer + offset);
     }

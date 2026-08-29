@@ -384,12 +384,13 @@ static void cli_event_handler(cli_private_t *priv, uint16_t event, uint32_t parm
 
 static void cli_enter(cli_private_t *priv)
 {
-    size_t text_len = strlen((const char *)priv->text.current_line);
+    char *text = (char *)cli_text_get_current_line(priv);
+    size_t text_len = strlen((const char *)text);
 
     if (0 < text_len)
     {
         /* 現在のテキストを履歴用バッファに保存 */
-        cli_text_storage_text(priv, (const char *)priv->text.current_line);
+        cli_text_storage_text(priv, (const char *)text);
 
         /* テキストをトークン化 */
         cli_tokenizer(priv);
@@ -451,7 +452,7 @@ static void cli_command_execute(cli_private_t *priv)
  */
 static void cli_tokenizer(cli_private_t *priv)
 {
-    char *token = (char *)priv->text.current_line;
+    char *token = (char *)cli_text_get_current_line(priv);
     uint32_t max_count = 0;
 
     priv->argument.count = 0;

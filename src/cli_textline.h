@@ -18,8 +18,6 @@
  * Public define
  ****************************************************************************************************/
 
-#define HISTORY_BROWSE_UNREAD       -1          /* 履歴は未閲覧 */
-
 /****************************************************************************************************
  * Public typedef
  ****************************************************************************************************/
@@ -94,6 +92,20 @@ void cli_text_set_cursor_pos(cli_private_t *priv, uint32_t pos);
 /********************
  * Getter functions
  ********************/
+
+/**
+ * @brief 現在行のポインタを取得
+ * @param priv 制御データ(context)のポインタ
+ * @return     テキストのポインタ
+ */
+uint8_t *cli_text_get_current_line(cli_private_t *priv);
+
+/**
+ * @brief 現在行の最大バッファサイズを取得
+ * @param priv 制御データ(context)のポインタ
+ * @return     最大バッファサイズ(byte)
+ */
+uint32_t cli_text_get_current_line_max_size(cli_private_t *priv);
 
 /**
  * @brief 履歴取得(古い履歴を遡る)
