@@ -46,24 +46,20 @@ typedef enum
 
 typedef struct
 {
-    uint8_t *line;
-    uint32_t max_size;
+    /** 現在操作中のテキストデータ(コマンドライン)*/
+    uint8_t *current_line;
+    uint32_t current_line_max_size;
 
-    uint32_t cursor;
+    /** 履歴データ*/
+    uint8_t *history_buffer;
+    uint32_t history_depth;
+    uint32_t history_write_idx;
+    int32_t  history_browse_idx;
+    uint32_t history_count;
+
+    /** カーソル位置 */
+    uint32_t cursor_pos;
 } cli_text_t;
-
-typedef struct
-{
-    bool is_valid;
-
-    uint8_t *buffer;
-    uint32_t max_size;
-
-    uint32_t write_idx;
-    int32_t browse_idx;
-
-    uint32_t count;
-} cli_history_t;
 
 typedef struct
 {
@@ -84,8 +80,8 @@ typedef struct
 
     parse_state_t state;
 
+    /** コマンドラインとして管理するテキストデータ */
     cli_text_t text;
-    cli_history_t history;
 
     cli_output_t output;
 

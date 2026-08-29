@@ -31,9 +31,9 @@
  * Private Functions
  ****************************************************************************************************/
 
-static void cli_textline_insert_text(cli_private_t *priv, uint32_t pos, const char *in_text);
-static void cli_textline_history_push(cli_private_t *priv, const char *text);
-static const char *cli_textline_history_pull(cli_private_t *priv, uint32_t index);
+static void cli_text_insert_text(cli_private_t *priv, uint32_t pos, const char *in_text);
+static void cli_text_history_push(cli_private_t *priv, const char *text);
+static const char *cli_text_history_pull(cli_private_t *priv, uint32_t index);
 
 
 /**
@@ -42,7 +42,7 @@ static const char *cli_textline_history_pull(cli_private_t *priv, uint32_t index
  * @param priv 制御データ(context)のポインタ
  * @param c    キャラクタ
  */
-void cli_textline_add_char(cli_private_t *priv, char c)
+void cli_text_add_char(cli_private_t *priv, char c)
 {
     uint8_t char_buf[2] = { 0 };
 
@@ -50,12 +50,11 @@ void cli_textline_add_char(cli_private_t *priv, char c)
     char_buf[1] = 0;
 
     const char *text = (const char *)char_buf;
-
-    size_t text_len   = strlen(text);
+    size_t text_len = strlen(text);
 
     if (0 < text_len)
     {
-        cli_textline_add_text(priv, text);
+        cli_text_add_text(priv, text);
     }
 }
 
@@ -65,18 +64,18 @@ void cli_textline_add_char(cli_private_t *priv, char c)
  * @param priv 制御データ(context)のポインタ
  * @param text テキストのポインタ
  */
-void cli_textline_add_text(cli_private_t *priv, const char *text)
+void cli_text_add_text(cli_private_t *priv, const char *text)
 {
-    size_t text_len   = strlen(text);
+    size_t text_len = strlen(text);
 
     if (0 < text_len)
     {
-        uint32_t pos = cli_textline_get_cursor_pos(priv);
+        uint32_t pos = cli_text_get_cursor_pos(priv);
 
         /* テキストを挿入 */
-        cli_textline_insert_text(priv, pos, text);
+        cli_text_insert_text(priv, pos, text);
 
-        cli_textline_set_cursor_pos(priv, (pos + text_len));
+        cli_text_set_cursor_pos(priv, (pos + text_len));
     }
 }
 
@@ -85,12 +84,12 @@ void cli_textline_add_text(cli_private_t *priv, const char *text)
  *        テキスト行のカーソル位置からキャラクタを消去する
  * @param priv 制御データ(context)のポインタ
  */
-void cli_textline_delete_char(cli_private_t *priv)
+void cli_text_delete_char(cli_private_t *priv)
 {
-    size_t line_len = strlen((const char *)priv->text.line);
+    size_t line_len = strlen((const char *)priv->text.current_line);
     size_t new_len  = 0;
 
-    uint32_t pos = cli_textline_get_cursor_pos(priv);
+    uint32_t pos = cli_text_get_cursor_pos(priv);
 
     if ((0 < line_len) && (0 < pos))
     {
@@ -99,12 +98,12 @@ void cli_textline_delete_char(cli_private_t *priv)
         /* 現在のカーソル位置にキャラクタを追加するため、カーソル位置より後ろのデータをずらす */
         for (size_t i = pos; i <= new_len; i++)
         {
-            priv->text.line[i] = priv->text.line[i + 1];
+            priv->text.current_line[i] = priv->text.current_line[i + 1];
         }
 
-        priv->text.line[new_len] = '\0';
+        priv->text.current_line[new_len] = '\0';
 
-        cli_textline_set_cursor_pos(priv, (pos - 1));
+        cli_text_set_cursor_pos(priv, (pos - 1));
     }
     else
     {
@@ -117,17 +116,17 @@ void cli_textline_delete_char(cli_private_t *priv)
  *        テキスト行のすべてのテキストを消去する
  * @param priv 制御データ(context)のポインタ
  */
-void cli_textline_delete_text(cli_private_t *priv)
+void cli_text_delete_text(cli_private_t *priv)
 {
-    size_t text_len = strlen((const char *)priv->text.line);
-    char *p = (char *)priv->text.line;
+    size_t text_len = strlen((const char *)priv->text.current_line);
+    char *p = (char *)priv->text.current_line;
 
     for (size_t i = 0; i < text_len; i++)
     {
         *(p + i) = '\0';
     }
 
-    cli_textline_set_cursor_pos(priv, 0);
+    cli_text_set_cursor_pos(priv, 0);
 }
 
 /**
@@ -136,28 +135,27 @@ void cli_textline_delete_text(cli_private_t *priv)
  * @param priv 制御データ(context)のポインタ
  * @param text テキストのポインタ
  */
-void cli_textline_storage_text(cli_private_t *priv, const char *text)
+void cli_text_storage_text(cli_private_t *priv, const char *text)
 {
     size_t text_len = strlen(text);
 
     if (0 < text_len)
     {
-        uint32_t msx_line_size = priv->text.max_size;
-        uint32_t max_history_count = priv->history.max_size / msx_line_size;
+        uint32_t max_history_count = priv->text.history_depth;
 
-        if (0 < priv->history.count)
+        if (0 < priv->text.history_count)
         {
             uint32_t prev_idex = 0;
             const char *prev_history = NULL;
 
-            prev_idex = (priv->history.write_idx + (max_history_count - 1)) % max_history_count;
-            prev_history = cli_textline_history_pull(priv, prev_idex);
+            prev_idex = (priv->text.history_write_idx + (max_history_count - 1)) % max_history_count;
+            prev_history = cli_text_history_pull(priv, prev_idex);
 
             /* 既に履歴データが存在するため、前回データと今回データの比較を行う。 */
             if (strcmp(prev_history, text) != 0)
             {
                 /* 今回データを履歴データとして設定 */
-                cli_textline_set_history(priv, text);
+                cli_text_set_history(priv, text);
             }
             else
             {
@@ -167,10 +165,10 @@ void cli_textline_storage_text(cli_private_t *priv, const char *text)
         else
         {
             /* 初回の履歴データを設定 */
-            cli_textline_set_history(priv, text);
+            cli_text_set_history(priv, text);
         }
 
-        priv->history.browse_idx = HISTORY_BROWSE_UNREAD;
+        priv->text.history_browse_idx = HISTORY_BROWSE_UNREAD;
     }
 }
 
@@ -185,20 +183,20 @@ void cli_textline_storage_text(cli_private_t *priv, const char *text)
  * @param priv 制御データ(context)のポインタ
  * @param text テキストのポインタ
  */
-void cli_textline_set_history(cli_private_t *priv, const char *text)
+void cli_text_set_history(cli_private_t *priv, const char *text)
 {
     size_t text_len = strlen(text);
 
     if (0 < text_len)
     {
-        uint32_t max_history_count = priv->history.max_size / priv->text.max_size;
+        uint32_t max_history_count = priv->text.history_depth;
 
-        cli_textline_history_push(priv, text);
+        cli_text_history_push(priv, text);
 
-        if (max_history_count > priv->history.count)
+        if (max_history_count > priv->text.history_count)
         {
             /* 履歴データの件数を更新 */
-            priv->history.count++;
+            priv->text.history_count++;
         }
     }
 }
@@ -208,9 +206,9 @@ void cli_textline_set_history(cli_private_t *priv, const char *text)
  * @param priv 制御データ(context)のポインタ
  * @param pos  設定するカーソル位置
  */
-void cli_textline_set_cursor_pos(cli_private_t *priv, uint32_t pos)
+void cli_text_set_cursor_pos(cli_private_t *priv, uint32_t pos)
 {
-    priv->text.cursor = pos;
+    priv->text.cursor_pos = pos;
 }
 
 
@@ -224,32 +222,32 @@ void cli_textline_set_cursor_pos(cli_private_t *priv, uint32_t pos)
  * @param priv 制御データ(context)のポインタ
  * @return     テキストのポインタ
  */
-const char *cli_textline_get_history_prev(cli_private_t *priv)
+const char *cli_text_get_history_prev(cli_private_t *priv)
 {
-    if (0 == priv->history.count) return NULL;
+    if (0 == priv->text.history_count) return NULL;
 
-    uint32_t max_history_count = priv->history.max_size / priv->text.max_size;
+    uint32_t max_history_count = priv->text.history_depth;
 
-    if (HISTORY_BROWSE_UNREAD == priv->history.browse_idx)
+    if (HISTORY_BROWSE_UNREAD == priv->text.history_browse_idx)
     {
         /* 履歴の閲覧を開始 */
         /* 現在の書き込み位置から閲覧位置(index)の開始位置を算出 */
-        priv->history.browse_idx = (priv->history.write_idx + (max_history_count - 1)) % max_history_count;
+        priv->text.history_browse_idx = (priv->text.history_write_idx + (max_history_count - 1)) % max_history_count;
     }
     else
     {
-        uint32_t oldest_idx = (priv->history.write_idx + (max_history_count - priv->history.count)) % max_history_count;
-        if ((uint32_t)priv->history.browse_idx == oldest_idx)
+        uint32_t oldest_idx = (priv->text.history_write_idx + (max_history_count - priv->text.history_count)) % max_history_count;
+        if ((uint32_t)priv->text.history_browse_idx == oldest_idx)
         {
             /* 既に一番古い履歴に達しているため、閲覧位置(index)の更新はしない */
         }
         else
         {
-            priv->history.browse_idx = (priv->history.browse_idx + (max_history_count - 1)) % max_history_count;
+            priv->text.history_browse_idx = (priv->text.history_browse_idx + (max_history_count - 1)) % max_history_count;
         }
     }
 
-    return cli_textline_history_pull(priv, priv->history.browse_idx);
+    return cli_text_history_pull(priv, priv->text.history_browse_idx);
 }
 
 /**
@@ -258,28 +256,28 @@ const char *cli_textline_get_history_prev(cli_private_t *priv)
  * @param priv 制御データ(context)のポインタ
  * @return     テキストのポインタ
  */
-const char *cli_textline_get_history_next(cli_private_t *priv)
+const char *cli_text_get_history_next(cli_private_t *priv)
 {
-    if (HISTORY_BROWSE_UNREAD == priv->history.browse_idx) return NULL;
+    if (HISTORY_BROWSE_UNREAD == priv->text.history_browse_idx) return NULL;
 
     const char *text = NULL;
 
-    uint32_t max_history_count = priv->history.max_size / priv->text.max_size;
-    uint32_t latest_idx = (priv->history.write_idx + (max_history_count - 1)) % max_history_count;
+    uint32_t max_history_count = priv->text.history_depth;
+    uint32_t latest_idx = (priv->text.history_write_idx + (max_history_count - 1)) % max_history_count;
 
-    if ((uint32_t)priv->history.browse_idx == latest_idx)
+    if ((uint32_t)priv->text.history_browse_idx == latest_idx)
     {
         /* 履歴の閲覧を終了 */
         /* 閲覧位置(index)を未閲覧に設定 */
-        priv->history.browse_idx = HISTORY_BROWSE_UNREAD;
+        priv->text.history_browse_idx = HISTORY_BROWSE_UNREAD;
 
         text = "";
     }
     else
     {
-        priv->history.browse_idx = (priv->history.browse_idx + 1) % max_history_count;
+        priv->text.history_browse_idx = (priv->text.history_browse_idx + 1) % max_history_count;
 
-        text = cli_textline_history_pull(priv, priv->history.browse_idx);
+        text = cli_text_history_pull(priv, priv->text.history_browse_idx);
     }
 
     return text;
@@ -290,9 +288,9 @@ const char *cli_textline_get_history_next(cli_private_t *priv)
  * @param priv 制御データ(context)のポインタ
  * @return 現在のカーソル位置
  */
-uint32_t cli_textline_get_cursor_pos(cli_private_t *priv)
+uint32_t cli_text_get_cursor_pos(cli_private_t *priv)
 {
-    return priv->text.cursor;
+    return priv->text.cursor_pos;
 }
 
 
@@ -305,15 +303,15 @@ uint32_t cli_textline_get_cursor_pos(cli_private_t *priv)
  *        テキスト行上のカーソル位置を右に移動する
  * @param priv 制御データ(context)のポインタ
  */
-void cli_textline_cursor_right(cli_private_t *priv)
+void cli_text_cursor_right(cli_private_t *priv)
 {
-    uint32_t cp = cli_textline_get_cursor_pos(priv);
+    uint32_t cp = cli_text_get_cursor_pos(priv);
 
-    size_t text_len = strlen((const char *)priv->text.line);
+    size_t text_len = strlen((const char *)priv->text.current_line);
 
-    if (priv->text.cursor < text_len)
+    if (priv->text.cursor_pos < text_len)
     {
-        cli_textline_set_cursor_pos(priv, (cp + 1));
+        cli_text_set_cursor_pos(priv, (cp + 1));
     }
 }
 
@@ -322,13 +320,13 @@ void cli_textline_cursor_right(cli_private_t *priv)
  *        テキスト行上のカーソル位置を左に移動する
  * @param priv 制御データ(context)のポインタ
  */
-void cli_textline_cursor_left(cli_private_t *priv)
+void cli_text_cursor_left(cli_private_t *priv)
 {
-    uint32_t cp = cli_textline_get_cursor_pos(priv);
+    uint32_t cp = cli_text_get_cursor_pos(priv);
 
-    if (0 < priv->text.cursor)
+    if (0 < priv->text.cursor_pos)
     {
-        cli_textline_set_cursor_pos(priv, (cp - 1));
+        cli_text_set_cursor_pos(priv, (cp - 1));
     }
 }
 
@@ -336,14 +334,14 @@ void cli_textline_cursor_left(cli_private_t *priv)
  * @brief 改行処理
  * @param priv 制御データ(context)のポインタ
  */
-void cli_textline_break(cli_private_t *priv)
+void cli_text_break(cli_private_t *priv)
 {
-    size_t text_len = strlen((const char *)priv->text.line);
+    size_t text_len = strlen((const char *)priv->text.current_line);
 
     if (0 < text_len)
     {
         /* テキストデータをすべて消去 */
-        cli_textline_delete_text(priv);
+        cli_text_delete_text(priv);
     }
 }
 
@@ -358,17 +356,17 @@ void cli_textline_break(cli_private_t *priv)
  * @param pos  挿入位置
  * @param in_text 挿入するテキストのポインタ
  */
-static void cli_textline_insert_text(cli_private_t *priv, uint32_t pos, const char *in_text)
+static void cli_text_insert_text(cli_private_t *priv, uint32_t pos, const char *in_text)
 {
     if (in_text == NULL) return;
 
     size_t in_len   = strlen(in_text);
-    size_t line_len = strlen((const char *)priv->text.line);
+    size_t line_len = strlen((const char *)priv->text.current_line);
     size_t new_len  = line_len + in_len;
 
-    char *p = (char *)priv->text.line;
+    char *p = (char *)priv->text.current_line;
 
-    if (new_len <= (priv->text.max_size - 1))
+    if (new_len <= (priv->text.current_line_max_size - 1))
     {
         /* 現在のカーソル位置にキャラクタを追加するため、カーソル位置より後ろのデータをずらす */
         for (size_t i = new_len; i >= (pos + in_len) ; i--)
@@ -401,18 +399,18 @@ static void cli_textline_insert_text(cli_private_t *priv, uint32_t pos, const ch
  *
  * このとき、各indexに書き込むtxetデータのサイズに関わらず、indexはテキスト行のサイズ=32byte毎に区切られる。
  */
-static void cli_textline_history_push(cli_private_t *priv, const char *text)
+static void cli_text_history_push(cli_private_t *priv, const char *text)
 {
     size_t text_len = strlen(text);
 
     if (0 < text_len)
     {
-        uint32_t msx_line_size = priv->text.max_size;
-        uint32_t max_history_count = priv->history.max_size / msx_line_size;
+        uint32_t msx_line_size = priv->text.current_line_max_size;
+        uint32_t max_history_count = priv->text.history_depth;
 
-        uint32_t offset = msx_line_size * priv->history.write_idx;
+        uint32_t offset = msx_line_size * priv->text.history_write_idx;
 
-        char *p = (char *)priv->history.buffer + offset;
+        char *p = (char *)priv->text.history_buffer + offset;
 
         /* 現在のテキストデータ(終端文字含む)を履歴用バッファにコピー */
         for (size_t i = 0; i < (text_len + 1); i++)
@@ -420,7 +418,7 @@ static void cli_textline_history_push(cli_private_t *priv, const char *text)
             *(p + i) = *(text + i);
         }
 
-        priv->history.write_idx = (priv->history.write_idx + 1) % max_history_count;
+        priv->text.history_write_idx = (priv->text.history_write_idx + 1) % max_history_count;
     }
     else
     {
@@ -436,18 +434,18 @@ static void cli_textline_history_push(cli_private_t *priv, const char *text)
  * @param index 循環バッファの読み込み位置
  * @return      テキストのポインタ
  */
-static const char *cli_textline_history_pull(cli_private_t *priv, uint32_t index)
+static const char *cli_text_history_pull(cli_private_t *priv, uint32_t index)
 {
     const char *text = NULL;
 
-    uint32_t msx_line_size = priv->text.max_size;
-    uint32_t max_history_count = priv->history.max_size / msx_line_size;
+    uint32_t msx_line_size = priv->text.current_line_max_size;
+    uint32_t max_history_count = priv->text.history_depth;
 
     if (max_history_count > index)
     {
         uint32_t offset = msx_line_size * index;
 
-        text = (const char *)(priv->history.buffer + offset);
+        text = (const char *)(priv->text.history_buffer + offset);
     }
     else
     {
