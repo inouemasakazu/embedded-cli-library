@@ -39,25 +39,43 @@ typedef int (*cli_command_handler_t)(int argc, char **argv);
  */
 typedef int (*cli_output_write_t)(const uint8_t *p, uint32_t s);
 
+
+/**
+ * @brief インスタンス生成用構造体
+ *        本データは公開APIを介してのみ、アクセスが可能。
+ *        操作を行った場合は動作の保証ができない。
+ */
 typedef struct
 {
     uint32_t opaque[32];
 } cli_context_t;
 
+
+/**
+ * @brief CLI利用時の設定データ
+ */
 typedef struct
 {
+    /** プロンプトに表示する文字列*/
     const char *prompt;
 
     /** コマンドラインに割り当てるバッファサイズ(byte)*/
     uint32_t max_line_size;
 
+    /** コマンドライン引数のvector数*/
     uint32_t depth_argv;
+
+    /** コマンドラインの履歴件数*/
     uint32_t depth_history;
 
     /** 出力用writeインターフェース*/
     cli_output_write_t output_write;
 } cli_config_t;
 
+
+/**
+ * @brief コマンドのデータ
+ */
 typedef struct
 {
     const char *name;
@@ -75,8 +93,8 @@ typedef struct
 
 /**
  * @brief CLI初期化
- * @param ctx CLIの状態データを保持するメモリ領域
- * @param cfg 設定データ
+ * @param ctx 制御データ(context)のポインタ
+ * @param cfg 設定データのポインタ
  * @param workspace workspaceメモリ
  * @param size workspaceのサイズ
  * @return 処理結果
@@ -94,7 +112,8 @@ int cli_begin(cli_context_t *ctx, const char *message);
 /**
  * @brief CLIキャラクタ入力処理
  *        入力するキャラクタデータの管理・コマンド実行の判断を行う。
- * @param c 入力するキャラクタデータ
+ * @param ctx 制御データ(context)のポインタ
+ * @param c   キャラクタ
  * @return 処理結果
  */
 int cli_input_char(cli_context_t *ctx, char c);

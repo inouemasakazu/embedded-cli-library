@@ -107,8 +107,8 @@ int output_string(cli_private_t *priv, const char *p);
 
 /**
  * @brief 型変換処理
- * @param ctx CLIの状態データを保持するメモリ領域
- * @return 非公開型に変換したポインタ
+ * @param priv 制御データ(context)のポインタ
+ * @return 公開型に変換したポインタ
  */
 static inline cli_context_t *get_public(cli_private_t *priv)
 {
@@ -119,7 +119,7 @@ static inline cli_context_t *get_public(cli_private_t *priv)
 
 /**
  * @brief 型変換処理
- * @param ctx CLIの状態データを保持するメモリ領域
+ * @param ctx 制御データ(context)のポインタ
  * @return 非公開型に変換したポインタ
  */
 static inline cli_private_t *get_priv(cli_context_t *ctx)
@@ -131,7 +131,7 @@ static inline cli_private_t *get_priv(cli_context_t *ctx)
 
 /**
  * @brief 型変換処理(読み取り専用)
- * @param ctx CLIの状態データを保持するメモリ領域
+ * @param ctx 制御データ(context)のポインタ
  * @return 非公開型に変換したポインタ
  */
 static inline const cli_private_t *get_priv_const(cli_context_t *ctx)

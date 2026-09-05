@@ -5,22 +5,6 @@
  *
  * @author  Masakazu Inoue
  * @date    2026/05/24          新規作成
- ****************************************************************************************************
- * @note
- * 利用手順を以下に示す。
- * 1. cli_init関数でCLIコンテキストの初期化を行う。
- * 2. cli_set_write_func関数で書き込み関数を設定する。
- * 3. cli_cmd_register関数でコマンド登録を行う。
- * 4. cli_printf関数+cli_show_prompt関数で起動時メッセージ+プロンプトを表示する(任意表示)。
- * 5. コマンド実行を行う場合はcli_input_char関数にコマンド入力文字を渡す(\r or \nの入力でコマンドを実行)。
- * 6. 必要に応じてcli_printf関数でコマンド実行結果を出力する。
- * 
- * @attention
- * 入力文字はASCIIコードを使用する。使用可能な文字は以下の通り。
- *  CLI_LINE_EDITTOR   : コマンドラインエディタで使用する文字(例: 'a', 'b', 'c', ...)
- *  CLI_ENTER_CHAR     : コマンド実行を示す文字(例: '\n')
- *  CLI_BACKSPACE_CHAR : コマンドラインエディタで使用する文字(例: '\b')
- *  CLI_ESCAPE_CHAR    : ESCシーンスは未対応(例: '\e')
  ****************************************************************************************************/
 
 /****************************************************************************************************
@@ -73,6 +57,7 @@ static void cli_event_handler(cli_private_t *priv, uint16_t event, uint32_t parm
 static void cli_enter(cli_private_t *priv);
 static void cli_tokenizer(cli_private_t *priv);
 
+
 static void cli_command_execute(cli_private_t *priv);
 static const cli_command_t *cli_command_find(cli_private_t *priv, const char *name);
 
@@ -86,11 +71,10 @@ static const cli_command_t *cli_get_command_list(cli_private_t *priv);
 static uint16_t cli_get_command_list_size(cli_private_t *priv);
 
 
-
 /**
  * @brief CLI初期化
- * @param ctx CLIの状態データを保持するメモリ領域
- * @param cfg 設定データ
+ * @param ctx 制御データ(context)のポインタ
+ * @param cfg 設定データのポインタ
  * @param workspace workspaceメモリ
  * @param size workspaceのサイズ
  * @return 処理結果
@@ -205,7 +189,8 @@ int cli_begin(cli_context_t *ctx, const char *message)
 /**
  * @brief CLIキャラクタ入力処理
  *        入力するキャラクタデータの管理・コマンド実行の判断を行う。
- * @param c 入力するキャラクタデータ
+ * @param ctx 制御データ(context)のポインタ
+ * @param c   キャラクタ
  * @return 処理結果
  */
 int cli_input_char(cli_context_t *ctx, char c)
@@ -402,6 +387,15 @@ static void cli_event_handler(cli_private_t *priv, uint16_t event, uint32_t parm
     }
 }
 
+/**
+ * @brief ENTER入力時処理
+ *        現在行用のバッファが保持するテキストデータをコマンドラインとして確定し、コマンドラインに以下の処理を行う。
+ *        - 現在のテキストデータを履歴データとして保存する。
+ *        - コマンドラインのトークン化を行う。
+ *        - コマンドハンドラの実行。
+ * @param priv 制御データ(context)のポインタ
+ * @return None
+ */
 static void cli_enter(cli_private_t *priv)
 {
     char *text = (char *)cli_text_get_current_line(priv);
@@ -409,10 +403,10 @@ static void cli_enter(cli_private_t *priv)
 
     if (0 < text_len)
     {
-        /* 現在のテキストを履歴用バッファに保存 */
+        /* 現在のテキストデータを履歴データとして保存 */
         cli_text_storage_text(priv, (const char *)text);
 
-        /* テキストをトークン化 */
+        /* コマンドラインをトークン化 */
         cli_tokenizer(priv);
 
         if (0 < priv->argument.count)
@@ -429,11 +423,19 @@ static void cli_enter(cli_private_t *priv)
 }
 
 /**
- * @brief コマンドラインをスペース区切りでトークンに分割
- * @param ctx CLIの状態データを保持するメモリ領域
- * @return 引数の数 (0以上)
- * @note 引数の最大数はCLI_ARGV_SIZEで定義されている値まで。引数の最大数を超える場合は切り詰める。
- *       引数の最大数に達していない場合は、argvの最後をNULLにする。
+ * @brief トークン作成
+ *        入力されたコマンドラインからトークンの作成を行う。コマンドラインはスペース区切りで分割(トークン化)する。
+ * @param priv 制御データ(context)のポインタ
+ * @return None
+ * @note
+ * コマンドライン引数はコマンドハンドラの実行時に使用するデータとして作成する。
+ *
+ * 作成するコマンドライン引数は以下の通り。
+ * - argc コマンドライン引数の数
+ * - argv コマンドライン引数を格納する文字列配列
+ *
+ * いずれも制御データ(context)内に保持するデータとして扱うが、データの生存期間はコマンドハンドラの実行～終了までとする。
+ * 以降はデータの使用を想定していないため、データが保持する値は保証しない。
  */
 static void cli_tokenizer(cli_private_t *priv)
 {
