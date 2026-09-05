@@ -77,6 +77,16 @@ static void cli_command_execute(cli_private_t *priv);
 static const cli_command_t *cli_command_find(cli_private_t *priv, const char *name);
 
 
+static void cli_set_prompt(cli_private_t *priv, const char *prompt);
+static void cli_set_output_write(cli_private_t *priv, cli_output_write_t output_write);
+static void cli_set_command_list(cli_private_t *priv, const cli_command_t *list);
+static void cli_set_command_list_size(cli_private_t *priv, uint16_t size);
+
+static const cli_command_t *cli_get_command_list(cli_private_t *priv);
+static uint16_t cli_get_command_list_size(cli_private_t *priv);
+
+
+
 /**
  * @brief CLI初期化
  * @param ctx CLIの状態データを保持するメモリ領域
@@ -103,8 +113,8 @@ int cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace, size_
     if (success == 0)
     {
         /* 設定データを反映 */
-        cli_set_prompt(ctx, cfg->prompt);
-        cli_set_output_write(ctx, cfg->output_write);
+        cli_set_prompt(priv, cfg->prompt);
+        cli_set_output_write(priv, cfg->output_write);
     }
 
     return success;
@@ -465,105 +475,6 @@ static void cli_tokenizer(cli_private_t *priv)
 
 
 /********************
- * Setter functions
- ********************/
-
-/**
- * @brief プロンプト設定
- * @param prompt プロンプトとして表示する文字列を示すメモリ領域
- * @return 処理結果
- */
-int cli_set_prompt(cli_context_t *ctx, const char *prompt)
-{
-    int success = 0;
-
-    if (ctx == NULL)
-    {
-        success = -1;
-    }
-    else
-    {
-        cli_private_t *priv = get_priv(ctx);
-
-        /* プロンプトの設定内容を更新 */
-        if (prompt == NULL)
-        {
-            /* デフォルトのプロンプト('>')を設定 */
-            priv->prompt = ">";
-        }
-        else
-        {
-            /* 任意のプロンプトを設定 */
-            priv->prompt = prompt;
-        }
-    }
-
-    return success;
-}
-
-/**
- * @brief 出力用writeインターフェース登録
- *        CLIが使用するwriteインターフェースの登録を行う。
- * @return 処理結果
- */
-int cli_set_output_write(cli_context_t *ctx, cli_output_write_t output_write)
-{
-    int success = 0;
-
-    if (ctx == NULL)
-    {
-        success = -1;
-    }
-    else
-    {
-        cli_private_t *priv = get_priv(ctx);
-
-        /* CB登録 */
-        priv->output_write = output_write;
-    }
-
-    return success;
-}
-
-/**
- * @brief コマンドを設定
- */
-void cli_set_command_list(cli_private_t *priv, const cli_command_t *list)
-{
-    priv->command_list = list;
-}
-
-/**
- * @brief コマンドの要素数を設定
- */
-void cli_set_command_list_size(cli_private_t *priv, uint16_t size)
-{
-    priv->list_size = size;
-}
-
-
-/********************
- * Getter functions
- ********************/
-
-/**
- * @brief コマンドを取得
- */
-const cli_command_t *cli_get_command_list(cli_private_t *priv)
-{
-    return (cli_command_t *)priv->command_list;
-}
-
-/**
- * @brief コマンドの要素数を取得
- */
-uint16_t cli_get_command_list_size(cli_private_t *priv)
-{
-    return priv->list_size;
-}
-
-
-/********************
  * Command functions
  ********************/
 
@@ -671,4 +582,75 @@ static const cli_command_t *cli_command_find(cli_private_t *priv, const char *na
     }
 
     return NULL;
+}
+
+
+/********************
+ * Setter functions
+ ********************/
+
+/**
+ * @brief プロンプト設定
+ * @param prompt プロンプトとして表示する文字列を示すメモリ領域
+ */
+static void cli_set_prompt(cli_private_t *priv, const char *prompt)
+{
+    if (prompt)
+    {
+        priv->prompt = prompt;
+    }
+    else
+    {
+        /* デフォルトのプロンプト('>')を設定 */
+        priv->prompt = ">";
+    }
+}
+
+/**
+ * @brief 出力用writeインターフェース登録
+ *        CLIが使用するwriteインターフェースの登録を行う。
+ */
+static void cli_set_output_write(cli_private_t *priv, cli_output_write_t output_write)
+{
+    if (output_write)
+    {
+        priv->output_write = output_write;
+    }
+}
+
+/**
+ * @brief コマンドを設定
+ */
+static void cli_set_command_list(cli_private_t *priv, const cli_command_t *list)
+{
+    priv->command_list = list;
+}
+
+/**
+ * @brief コマンドの要素数を設定
+ */
+static void cli_set_command_list_size(cli_private_t *priv, uint16_t size)
+{
+    priv->list_size = size;
+}
+
+
+/********************
+ * Getter functions
+ ********************/
+
+/**
+ * @brief コマンドを取得
+ */
+static const cli_command_t *cli_get_command_list(cli_private_t *priv)
+{
+    return (cli_command_t *)priv->command_list;
+}
+
+/**
+ * @brief コマンドの要素数を取得
+ */
+static uint16_t cli_get_command_list_size(cli_private_t *priv)
+{
+    return priv->list_size;
 }

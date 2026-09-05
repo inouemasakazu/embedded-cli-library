@@ -122,22 +122,4 @@ int cli_command_register(cli_context_t *ctx, const cli_command_t *list, uint16_t
 int cli_command_unregister(cli_context_t *ctx);
 
 
-/********************
- * Setter functions
- ********************/
-
-/**
- * @brief プロンプト設定
- * @param prompt プロンプトとして表示する文字列を示すメモリ領域
- * @return 処理結果
- */
-int cli_set_prompt(cli_context_t *ctx, const char *prompt);
-
-/**
- * @brief 出力用writeインターフェース登録
- *        CLIが使用するwriteインターフェースの登録を行う。
- * @return 処理結果
- */
-int cli_set_output_write(cli_context_t *ctx, cli_output_write_t output_write);
-
 #endif  /* __CLI_H__ */
