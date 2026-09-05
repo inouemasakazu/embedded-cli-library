@@ -71,12 +71,9 @@ static void cli_event_send(cli_private_t *priv, uint16_t event, uint32_t parm);
 static void cli_event_handler(cli_private_t *priv, uint16_t event, uint32_t parm);
 
 static void cli_enter(cli_private_t *priv);
-static void cli_command_execute(cli_private_t *priv);
 static void cli_tokenizer(cli_private_t *priv);
 
-int cli_command_register(cli_private_t *priv, const cli_command_t *list, uint16_t size);
-int cli_command_unregister(cli_private_t *priv);
-
+static void cli_command_execute(cli_private_t *priv);
 static const cli_command_t *cli_command_find(cli_private_t *priv, const char *name);
 
 
@@ -108,7 +105,6 @@ int cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace, size_
         /* 設定データを反映 */
         cli_set_prompt(ctx, cfg->prompt);
         cli_set_output_write(ctx, cfg->output_write);
-        cli_command_register(priv, cfg->command_list, cfg->list_size);
     }
 
     return success;
@@ -423,40 +419,6 @@ static void cli_enter(cli_private_t *priv)
 }
 
 /**
- * @brief コマンド実行
- *        コマンドライン引数が保持するコマンド名と、コマンドリストに一致するコマンド名の探索を行う。
- *        一致するコマンド名が存在する場合はコマンド実行の要求ありのため、handlerを起動する。
- * @param priv 
- * @return 実行結果
- */
-
-static void cli_command_execute(cli_private_t *priv)
-{
-    int argc    = priv->argument.count;
-    char **argv = priv->argument.vector;
-
-    if ((argc != 0) || (argv != NULL))
-    {
-        const cli_command_t *list = cli_command_find(priv, argv[0]);
-
-        if (list)
-        {
-            /* ハンドラの起動 */
-            if (list->handler(argc, argv) != 0)
-            {
-                output_string(priv, "\r\nError: command execution failed\r\n");
-            }
-        }
-        else
-        {
-            output_string(priv, "\r\nError: '");
-            output_string(priv, priv->argument.vector[0]);
-            output_string(priv, "' command not found\r\n");
-        }
-    }
-}
-
-/**
  * @brief コマンドラインをスペース区切りでトークンに分割
  * @param ctx CLIの状態データを保持するメモリ領域
  * @return 引数の数 (0以上)
@@ -602,16 +564,24 @@ uint16_t cli_get_command_list_size(cli_private_t *priv)
 
 
 /********************
- * Other functions
+ * Command functions
  ********************/
 
 /**
  * @brief コマンド登録
+ *        エントリーテーブルのポインタとテーブルの要素数を登録する。
+ * @param ctx  制御データ(context)のポインタ
+ * @param list エントリーテーブルのポインタ
+ * @param size テーブルの要素数
+ * @return 処理結果
  */
-int cli_command_register(cli_private_t *priv, const cli_command_t *list, uint16_t size)
+int cli_command_register(cli_context_t *ctx, const cli_command_t *list, uint16_t size)
 {
+    if (ctx == NULL) return -1;
     if (list == NULL) return -1;
     if (size == 0) return -1;
+
+    cli_private_t *priv = get_priv(ctx);
 
     cli_set_command_list(priv, list);
     cli_set_command_list_size(priv, size);
@@ -621,19 +591,52 @@ int cli_command_register(cli_private_t *priv, const cli_command_t *list, uint16_
 
 /**
  * @brief コマンド登録解除
+ * @param ctx  制御データ(context)のポインタ
+ * @return 処理結果
  */
-int cli_command_unregister(cli_private_t *priv)
+int cli_command_unregister(cli_context_t *ctx)
 {
+    if (ctx == NULL) return -1;
+
+    cli_private_t *priv = get_priv(ctx);
+
     cli_set_command_list(priv, NULL);
     cli_set_command_list_size(priv, 0);
 
     return 0;
 }
 
+/**
+ * @brief コマンドハンドラ実行
+ *        コマンドライン引数に一致するコマンドをエントリーテーブルから取得し、ハンドラを実行する。
+ * @param priv 制御データ(context)のポインタ
+ * @return None
+ */
+static void cli_command_execute(cli_private_t *priv)
+{
+    int argc    = priv->argument.count;
+    char **argv = priv->argument.vector;
 
-/********************
- * Static functions
- ********************/
+    if ((argc != 0) || (argv != NULL))
+    {
+        const cli_command_t *command = cli_command_find(priv, argv[0]);
+
+        if (command)
+        {
+            /* ハンドラ実行 */
+            if (command->handler(argc, argv) != 0)
+            {
+                output_string(priv, "\r\nError: command execution failed\r\n");
+            }
+        }
+        else
+        {
+            output_string(priv, "\r\nError: '");
+            output_string(priv, priv->argument.vector[0]);
+            output_string(priv, "' command not found\r\n");
+        }
+    }
+}
 
 /**
  * @brief コマンド探索

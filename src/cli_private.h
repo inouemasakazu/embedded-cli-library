@@ -79,7 +79,9 @@ typedef struct
 
     /* コマンドライン引数 */
     cli_argument_t argument;
-    cli_command_t *command_list;
+
+    /** コマンドのエントリーテーブル*/
+    const cli_command_t *command_list;
     uint16_t list_size;
 
     /** writeインターフェースデータ */

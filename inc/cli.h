@@ -29,7 +29,7 @@
  * @param argv コマンドライン引数を格納する文字列配列
  * @return 処理結果
  */
-typedef int (*command_handler_t)(int argc, char **argv);
+typedef int (*cli_command_handler_t)(int argc, char **argv);
 
 /**
  * @brief CLIの出力用writeインターフェース
@@ -46,17 +46,9 @@ typedef struct
 
 typedef struct
 {
-    const char *name;
-    command_handler_t handler;
-} cli_command_t;
-
-typedef struct
-{
     const char *prompt;
 
-    cli_command_t *command_list;
-    uint16_t list_size;
-
+    /** コマンドラインに割り当てるバッファサイズ(byte)*/
     uint32_t max_line_size;
 
     uint32_t depth_argv;
@@ -65,6 +57,12 @@ typedef struct
     /** 出力用writeインターフェース*/
     cli_output_write_t output_write;
 } cli_config_t;
+
+typedef struct
+{
+    const char *name;
+    cli_command_handler_t handler;
+} cli_command_t;
 
 
 /****************************************************************************************************
@@ -100,6 +98,28 @@ int cli_begin(cli_context_t *ctx, const char *message);
  * @return 処理結果
  */
 int cli_input_char(cli_context_t *ctx, char c);
+
+
+/********************
+ * Command functions
+ ********************/
+
+/**
+ * @brief コマンド登録
+ *        エントリーテーブルのポインタとテーブルの要素数を登録する。
+ * @param ctx  制御データ(context)のポインタ
+ * @param list エントリーテーブルのポインタ
+ * @param size テーブルの要素数
+ * @return 処理結果
+ */
+int cli_command_register(cli_context_t *ctx, const cli_command_t *list, uint16_t size);
+
+/**
+ * @brief コマンド登録解除
+ * @param ctx  制御データ(context)のポインタ
+ * @return 処理結果
+ */
+int cli_command_unregister(cli_context_t *ctx);
 
 
 /********************
