@@ -107,8 +107,7 @@ int cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace, size_
     {
         /* 設定データを反映 */
         cli_set_prompt(ctx, cfg->prompt);
-        cli_set_stdout_cb(ctx, cfg->io_write_cb);
-
+        cli_set_output_write(ctx, cfg->output_write);
         cli_command_register(priv, cfg->command_list, cfg->list_size);
     }
 
@@ -124,7 +123,6 @@ int cli_workspace_memory_layout(cli_private_t *priv, const cli_config_t *cfg, vo
 
     /* 設定データからCLIが使用するワーキングメモリーの必要byte数を算出 */
     total = cfg->max_line_size;
-    total = total + cfg->max_output_size;
     total = total + (cfg->depth_argv * sizeof(char *));
     total = total + (cfg->max_line_size * cfg->depth_history);
 
@@ -157,11 +155,6 @@ int cli_workspace_memory_layout(cli_private_t *priv, const cli_config_t *cfg, vo
 
     offset = offset + (cfg->max_line_size * cfg->depth_history);
 
-    priv->output.buf = (workspace + offset);
-    priv->output.max_size = cfg->max_output_size;
-
-    offset = offset + cfg->max_output_size;
-
     priv->argument.vector = (char **)(workspace + offset);
     priv->argument.max_size = (cfg->depth_argv * sizeof(char *));
 
@@ -191,11 +184,13 @@ int cli_begin(cli_context_t *ctx, const char *message)
         if ((message != NULL) || (*message != '\0'))
         {
             /* 開始を通知するメッセージを表示 */
-            cli_printf(ctx, "\r\n%s", message);
+            output_string(priv, "\r\n");
+            output_string(priv, message);
         }
 
         /* プロンプトを表示 */
-        cli_printf(ctx, "\r\n%s", priv->prompt);
+        output_string(priv, "\r\n");
+        output_string(priv, priv->prompt);
     }
 
     return success;
@@ -308,8 +303,6 @@ static void cli_event_send(cli_private_t *priv, uint16_t event, uint32_t parm)
 
 static void cli_event_handler(cli_private_t *priv, uint16_t event, uint32_t parm)
 {
-    cli_context_t *ctx = get_public(priv);
-
     if (event != 0)
     {
         if (event == 1)
@@ -326,7 +319,6 @@ static void cli_event_handler(cli_private_t *priv, uint16_t event, uint32_t parm
         else if (event == 3)
         {
             cli_enter(priv);
-            cli_printf(ctx, "\r\n");
         }
         else if (event ==4)
         {
@@ -366,19 +358,41 @@ static void cli_event_handler(cli_private_t *priv, uint16_t event, uint32_t parm
         size_t p_len = strlen(priv->prompt);
         size_t c_len = cli_text_get_cursor_pos(priv);
 
-#if 0
-        /* text line draw refresh. */
-        cli_printf(ctx, "\033[2K");                                 /* テキスト行を行ごと削除 */
-        cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
-        cli_printf(ctx, "%s", priv->prompt);                        /* プロンプト表示 */
-        cli_printf(ctx, "%s", priv->text.current_line);                     /* テキスト行表示 */
-        cli_printf(ctx, "\r");                                      /* 復帰(左寄せ) */
-        cli_printf(ctx, "\e[%dC", priv->text.cursor + p_len);       /* 現在のカーソル位置に移動 */
-#else
-        cli_printf(ctx, "\033[2K\r%s", priv->prompt);                                 /* テキスト行を行ごと削除 */
-        cli_printf(ctx, "%s", priv->text.current_line);                     /* テキスト行表示 */
-        cli_printf(ctx, "\r\e[%dC", p_len + c_len);       /* 現在のカーソル位置に移動 */
-#endif
+        char buf[8];
+        uint16_t pos = p_len + c_len;
+
+        char *text = (char *)cli_text_get_current_line(priv);
+
+        buf[0] = '\r';
+        buf[1] = '\e';
+        buf[2] = '[';
+
+        if (pos > 99)
+        {
+            buf[3] = ((pos / 100) % 10) + '0';
+            buf[4] = ((pos /  10) % 10) + '0';
+            buf[5] = ((pos /   1) % 10) + '0';
+            buf[6] = 'C';
+            buf[7] = '\0';
+        }
+        else if (pos > 9)
+        {
+            buf[3] = ((pos /  10) % 10) + '0';
+            buf[4] = ((pos /   1) % 10) + '0';
+            buf[5] = 'C';
+            buf[6] = '\0';
+        }
+        else
+        {
+            buf[3] = ((pos /   1) % 10) + '0';
+            buf[4] = 'C';
+            buf[5] = '\0';
+        }
+
+        output_string(priv, "\033[2K\r");                   /* テキスト行を行ごと削除 */
+        output_string(priv, priv->prompt);                  /* プロンプト */
+        output_string(priv, text);                          /* テキスト */
+        output_string(priv, buf);                           /* カーソル位置 */
     }
 }
 
@@ -400,10 +414,12 @@ static void cli_enter(cli_private_t *priv)
             /* コマンド実行 */
             cli_command_execute(priv);
         }
+
+        /* テキストをすべて消去 */
+        cli_text_delete_text(priv);
     }
 
-    /* 改行 */
-    cli_text_break(priv);
+    output_string(priv, "\r\n");
 }
 
 /**
@@ -419,8 +435,6 @@ static void cli_command_execute(cli_private_t *priv)
     int argc    = priv->argument.count;
     char **argv = priv->argument.vector;
 
-    cli_context_t *ctx = get_public(priv);
-
     if ((argc != 0) || (argv != NULL))
     {
         const cli_command_t *list = cli_command_find(priv, argv[0]);
@@ -430,17 +444,16 @@ static void cli_command_execute(cli_private_t *priv)
             /* ハンドラの起動 */
             if (list->handler(argc, argv) != 0)
             {
-                cli_printf(ctx, "\r\nError: command execution failed\r\n");
+                output_string(priv, "\r\nError: command execution failed\r\n");
             }
         }
         else
         {
-            cli_printf(ctx, "\r\nError: '%s' command not found\r\n", priv->argument.vector[0]);
-            
+            output_string(priv, "\r\nError: '");
+            output_string(priv, priv->argument.vector[0]);
+            output_string(priv, "' command not found\r\n");
         }
     }
-
-    cli_printf(ctx, "\r\n");
 }
 
 /**
@@ -527,11 +540,11 @@ int cli_set_prompt(cli_context_t *ctx, const char *prompt)
 }
 
 /**
- * @brief CLI用データ書き込みCB処理の登録
- *        CLIモジュール内で使用する出力処理のコールバックを設定する。
+ * @brief 出力用writeインターフェース登録
+ *        CLIが使用するwriteインターフェースの登録を行う。
  * @return 処理結果
  */
-int cli_set_stdout_cb(cli_context_t *ctx, io_write_cb_t write_cb)
+int cli_set_output_write(cli_context_t *ctx, cli_output_write_t output_write)
 {
     int success = 0;
 
@@ -544,7 +557,7 @@ int cli_set_stdout_cb(cli_context_t *ctx, io_write_cb_t write_cb)
         cli_private_t *priv = get_priv(ctx);
 
         /* CB登録 */
-        priv->io_write_cb = write_cb;
+        priv->output_write = output_write;
     }
 
     return success;

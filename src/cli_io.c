@@ -15,6 +15,7 @@
 #include "cli_private.h"
 
 #include <stdio.h>
+#include <string.h>
 
 /****************************************************************************************************
  * Private define
@@ -32,133 +33,99 @@
  * Private Functions
  ****************************************************************************************************/
 
-/**
- * @brief CLI用データ書き込みCB処理の実行
- * @param ctx 制御データ(context)のポインタ
- * @param p 出力データのポインタ
- * @param s 出力データサイズ
- * @return 正常(0) / 失敗(-1) / CB未登録(1)
- */
-int cli_io_write(cli_context_t *ctx, const char *p, uint16_t s)
-{
-    int success = 0;
-
-    if ((ctx == NULL) || (p == NULL))
-    {
-        success = -1;
-    }
-    else
-    {
-        cli_private_t *priv = get_priv(ctx);
-
-        if (priv->io_write_cb)
-        {
-            /* 書き込みCB実行 */
-            success = priv->io_write_cb(p, s);
-        }
-        else
-        {
-            /* CB未登録 */
-            success = 1;
-        }
-    }
-
-    return success;
-}
+static int output_write(cli_private_t *priv, const char *p, uint32_t s);
 
 /**
- * @brief 書式付き文字列の出力
- *        標準ライブラリのprintfと同様の機能を有する。
+ * @brief キャラクタ出力
  * @param ctx 制御データ(context)のポインタ
- * @param format 出力するときの書式を含む文字列
- * @param ...    出力する値のリスト
- * @return 出力した文字数、または負の値(エラー時)
+ * @param c キャラクタ
+ * @return 正常(0) / 失敗(-1)
  */
-int cli_printf(cli_context_t *ctx, const char * format, ...)
+int cli_putc(cli_context_t *ctx, char c)
 {
     if (ctx == NULL) return -1;
 
-    int success = -1;
-    va_list arg;
+    cli_private_t *priv = get_priv(ctx);
+    char buf[8] = { 0 };
 
-    va_start(arg, format);
-    success = cli_vprintf(ctx, format, arg);
-    va_end(arg);
+    buf[0] = c;
+    buf[1] = '\0';
 
-    return success;
+    return output_write(priv, (const char *)buf, strlen((const char *)buf));
 }
 
 /**
- * @brief 可変個引数リストを書式付で文字列に出力
+ * @brief 文字列出力
  * @param ctx 制御データ(context)のポインタ
- * @param format 出力するときの書式を含む文字列
- * @param arg    引数並びへのポインタ
- * @return 出力した文字数、または負の値(エラー時)
+ * @param s 文字列のポインタ
+ * @return 正常(0) / 失敗(-1) / CB未登録(1)
  */
-int cli_vprintf(cli_context_t *ctx, const char *format, va_list arg)
+int cli_puts(cli_context_t *ctx, const char *s)
 {
     if (ctx == NULL) return -1;
 
     cli_private_t *priv = get_priv(ctx);
 
-    int success = -1;
-    int s = 0;
-    int n = priv->output.max_size;      /* 最大文字数(終端文字(\0)を含む) */
+    size_t len = strlen(s);
 
-    s = vsnprintf((char *)priv->output.buf, n, format, arg);
-
-    if (0 < s)
+    if (0 < len)
     {
-        if (n <= s)
+        int ret = 0;
+
+        ret = output_write(priv, s, len);
+        if (ret != 0)
         {
-            /* bufサイズを超過しているので切り詰める */
-            s = (n - 1);
-            priv->output.buf[s] = '\0';
+            return -2;
         }
 
-        /* 出力処理実行 */
-        success = cli_io_write(ctx, (const char *)priv->output.buf, ((uint16_t)s));
-        if (success == 0)
+        ret = output_write(priv, "\r\n", 3);
+        if (ret != 0)
         {
-            /* 処理結果として出力した文字数(byte)を返す */
-            success = s;
+            return -2;
         }
     }
-    else
-    {
-        /* 表現形式エラー */
-        success = -1;
-    }
 
-    return success;
+    return 1;
 }
 
 /**
- * @brief CLI用文字の標準出力
- *        1byte単位でデータを出力する
- * @param ctx 制御データ(context)のポインタ
- * @param c 出力する文字
- * @return 正常(0) / 失敗(-1)
+ * @brief 文字列出力（内部処理用）
+ * @param priv 制御データ(context)のポインタ
+ * @param p 文字列のポインタ
+ * @return 正常(0) / 失敗(-1) / CB未登録(1)
  */
-int cli_putc(cli_context_t *ctx, char c)
+int output_string(cli_private_t *priv, const char *p)
 {
-    int success = 0;
+    size_t s = strlen(p);
 
-    if (ctx == NULL)
+    if (0 < s)
     {
-        success = -1;
-    }
-    else
-    {
-        cli_private_t *priv = get_priv(ctx);
-
-        /* データ整形 */
-        priv->output.buf[0] = c;
-        priv->output.buf[1] = '\0';
-
-        /* 出力処理実行 */
-        success = cli_io_write(ctx, (const char *)priv->output.buf, 1);
+        return output_write(priv, p, s);
     }
 
-    return success;
+    return -1;
+}
+
+
+/********************
+ * Static functions
+ ********************/
+
+/**
+ * @brief writeインターフェースの実行
+ * @param priv 制御データ(context)のポインタ
+ * @param p 出力データのポインタ
+ * @param s 出力データサイズ
+ * @return 正常(0) / 失敗(-1) / CB未登録(1)
+ */
+static int output_write(cli_private_t *priv, const char *p, uint32_t s)
+{
+    cli_output_write_t output_write = priv->output_write;
+
+    if (output_write)
+    {
+        return output_write((const uint8_t *)p, s);
+    }
+
+    return 1;
 }

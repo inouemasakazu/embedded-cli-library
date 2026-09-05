@@ -63,12 +63,6 @@ typedef struct
 
 typedef struct
 {
-    uint8_t *buf;
-    uint32_t max_size;
-} cli_output_t;
-
-typedef struct
-{
     int count;
     char **vector;
     uint32_t max_size;
@@ -83,16 +77,15 @@ typedef struct
     /** コマンドラインとして管理するテキストデータ */
     cli_text_t text;
 
-    cli_output_t output;
-
     /* コマンドライン引数 */
     cli_argument_t argument;
     cli_command_t *command_list;
     uint16_t list_size;
 
-    /* cli write structure */
-    io_write_cb_t io_write_cb;
+    /** writeインターフェースデータ */
+    cli_output_write_t output_write;
 } cli_private_t;
+
 
 /****************************************************************************************************
  * Public Variables
@@ -101,6 +94,14 @@ typedef struct
 /****************************************************************************************************
  * Public Functions
  ****************************************************************************************************/
+
+/**
+ * @brief 文字列出力（内部処理用）
+ * @param priv 制御データ(context)のポインタ
+ * @param p 文字列のポインタ
+ * @return 正常(0) / 失敗(-1) / CB未登録(1)
+ */
+int output_string(cli_private_t *priv, const char *p);
 
 /**
  * @brief 型変換処理

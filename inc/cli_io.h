@@ -14,9 +14,6 @@
  ****************************************************************************************************/
 #include "cli.h"
 
-#include <stdint.h>
-#include <stdarg.h>
-
 /****************************************************************************************************
  * Public define
  ****************************************************************************************************/
@@ -34,38 +31,20 @@
  ****************************************************************************************************/
 
 /**
- * @brief CLI用データ書き込みCB処理の実行
- * @param p 出力データのポインタ
- * @param s 出力データサイズ
- * @return 正常(0) / 失敗(-1) / CB未登録(1)
- */
-int cli_io_write(cli_context_t *ctx, const char *p, uint16_t s);
-
-/**
- * @brief 書式付き文字列の出力
- *        標準ライブラリのprintfと同様の機能を有する。
+ * @brief キャラクタ出力
  * @param ctx 制御データ(context)のポインタ
- * @param format 出力するときの書式を含む文字列
- * @param ...    出力する値のリスト
- * @return 出力した文字数、または負の値(エラー時)
- */
-int cli_printf(cli_context_t *ctx, const char *format, ...);
-
-/**
- * @brief 可変個引数リストを書式付で文字列に出力
- *        printfと同様のフォーマットで書式化文字列の出力を行う
- * @param  format 出力するときの書式を含む文字列
- * @param  arg    引数並びへのポインタ
- * @return 出力byte数 / 失敗(-1)
- */
-int cli_vprintf(cli_context_t *ctx, const char *format, va_list arg);
-
-/**
- * @brief CLI用文字の標準出力
- *        1byte単位でデータを出力する
- * @param c 出力する文字
+ * @param c キャラクタ
  * @return 正常(0) / 失敗(-1)
  */
 int cli_putc(cli_context_t *ctx, char c);
+
+/**
+ * @brief 文字列出力
+ * @param ctx 制御データ(context)のポインタ
+ * @param s 文字列のポインタ
+ * @return 正常(0) / 失敗(-1) / CB未登録(1)
+ */
+int cli_puts(cli_context_t *ctx, const char *s);
+
 
 #endif  /* __CLI_IO_H__ */
