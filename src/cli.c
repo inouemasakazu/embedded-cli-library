@@ -27,7 +27,7 @@
  * Private include
  ****************************************************************************************************/
 #include "../inc/cli.h"
-#include "../inc/cli_io.h"
+#include "../inc/cli_output.h"
 
 #include "cli_private.h"
 
