@@ -93,10 +93,10 @@ typedef struct
 
 /**
  * @brief CLI初期化
- * @param ctx 制御データ(context)のポインタ
- * @param cfg 設定データのポインタ
- * @param workspace workspaceメモリ
- * @param size workspaceのサイズ
+ * @param ctx       制御データ(context)のポインタ
+ * @param cfg       設定データのポインタ
+ * @param workspace workspaceのポインタ
+ * @param size      workspaceのメモリサイズ
  * @return 処理結果
  */
 int cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace, size_t size);

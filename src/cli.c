@@ -46,6 +46,8 @@
 /****************************************************************************************************
  * Private Functions
  ****************************************************************************************************/
+
+static int cli_set_config(cli_private_t *priv, const cli_config_t *cfg, void *workspace, size_t size);
 static int cli_workspace_memory_layout(cli_private_t *priv, const cli_config_t *cfg, void *workspace, size_t size);
 
 static void cli_char_proc(cli_private_t *priv, char c);
@@ -73,35 +75,57 @@ static uint16_t cli_get_command_list_size(cli_private_t *priv);
 
 /**
  * @brief CLI初期化
- * @param ctx 制御データ(context)のポインタ
- * @param cfg 設定データのポインタ
- * @param workspace workspaceメモリ
- * @param size workspaceのサイズ
+ * @param ctx       制御データ(context)のポインタ
+ * @param cfg       設定データのポインタ
+ * @param workspace workspaceのポインタ
+ * @param size      workspaceのメモリサイズ
  * @return 処理結果
  */
 int cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace, size_t size)
 {
-    if ((ctx == NULL) || (cfg == NULL) || (workspace == NULL))
-    {
-        return -1;
-    }
+    if (ctx == NULL) return -1;
 
     cli_private_t *priv = get_priv(ctx);
-
-    int success = 0;
 
     /* メモリ0クリア */
     memset(priv, 0, sizeof(*priv));
 
-    success = cli_workspace_memory_layout(priv, cfg, workspace, size);
-    if (success == 0)
+    /* 設定データを展開 */
+    if (cli_set_config(priv, cfg, workspace, size) != 0)
     {
-        /* 設定データを反映 */
-        cli_set_prompt(priv, cfg->prompt);
-        cli_set_output_write(priv, cfg->output_write);
+        return -2;
     }
 
-    return success;
+    return 0;
+}
+
+/**
+ * @brief 設定データ展開
+ * @param priv      制御データ(context)のポインタ
+ * @param cfg       設定データのポインタ
+ * @param workspace workspaceのポインタ
+ * @param size      workspaceのメモリサイズ
+ * @return 処理結果
+ */
+static int cli_set_config(cli_private_t *priv, const cli_config_t *cfg, void *workspace, size_t size)
+{
+    if (cfg == NULL) return -1;
+    if (workspace == NULL) return -1;
+
+    if (cli_workspace_memory_layout(priv, cfg, workspace, size) == 0)
+    {
+        /* プロンプト設定 */
+        cli_set_prompt(priv, cfg->prompt);
+
+        /* writeインタフェース設定 */
+        cli_set_output_write(priv, cfg->output_write);
+    }
+    else
+    {
+        return -2;
+    }
+
+    return 0;
 }
 
 /**
