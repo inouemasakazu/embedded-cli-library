@@ -81,9 +81,9 @@ static uint16_t cli_get_command_list_size(cli_private_t *priv);
  * @param size      workspaceのメモリサイズ
  * @return 処理結果
  */
-int cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace, size_t size)
+cli_code_t cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace, size_t size)
 {
-    if (ctx == NULL) return -1;
+    if (ctx == NULL) return CLI_CODE_INVALID_INSTANCE;
 
     cli_private_t *priv = get_priv(ctx);
 
@@ -96,7 +96,53 @@ int cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace, size_
         return -2;
     }
 
-    return 0;
+    return CLI_CODE_OK;
+}
+
+/**
+ * @brief 初期化解除
+ * @param ctx       制御データ(context)のポインタ
+ * @return 処理結果
+ */
+cli_code_t cli_deinit(cli_context_t *ctx)
+{
+    if (ctx == NULL) return CLI_CODE_INVALID_INSTANCE;
+
+    cli_private_t *priv = get_priv(ctx);
+
+    /* メモリ0クリア */
+    memset(priv, 0, sizeof(*priv));
+
+    return CLI_CODE_OK;
+}
+
+/**
+ * @brief メイン処理
+ * @param ctx       制御データ(context)のポインタ
+ * @return 処理結果
+ */
+cli_code_t cli_process(cli_context_t *ctx)
+{
+    if (ctx == NULL) return CLI_CODE_INVALID_INSTANCE;
+
+    cli_private_t *priv = get_priv(ctx);
+
+    return CLI_CODE_OK;
+}
+
+/**
+ * @brief 文字データ送信
+ * @param ctx       制御データ(context)のポインタ
+ * @param c         入力文字（キャラクタ）
+ * @return 処理結果
+ */
+cli_code_t cli_send_char(cli_context_t *ctx, char c)
+{
+    if (ctx == NULL) return CLI_CODE_INVALID_INSTANCE;
+
+    cli_private_t *priv = get_priv(ctx);
+
+    return CLI_CODE_OK;
 }
 
 /**
@@ -125,7 +171,7 @@ static int cli_set_config(cli_private_t *priv, const cli_config_t *cfg, void *wo
         return -2;
     }
 
-    return 0;
+    return CLI_CODE_OK;
 }
 
 /**
@@ -174,94 +220,7 @@ int cli_workspace_memory_layout(cli_private_t *priv, const cli_config_t *cfg, vo
 
     offset = offset + priv->argument.max_size;
 
-    return 0;
-}
-
-/**
- * @brief CLI開始
- *        CLIの開始を通知するメッセージと、プロンプト('>')の表示を行う。
- * @param message 開始を通知するメッセージ(通知が必要ない場合はNULLを設定する)
- * @return 処理結果
- */
-int cli_begin(cli_context_t *ctx, const char *message)
-{
-    int success = 0;
-
-    if (ctx == NULL)
-    {
-        success = -1;
-    }
-    else
-    {
-        cli_private_t *priv = get_priv(ctx);
-
-        if ((message != NULL) || (*message != '\0'))
-        {
-            /* 開始を通知するメッセージを表示 */
-            output_string(priv, "\r\n");
-            output_string(priv, message);
-        }
-
-        /* プロンプトを表示 */
-        output_string(priv, "\r\n");
-        output_string(priv, priv->prompt);
-    }
-
-    return success;
-}
-
-/**
- * @brief CLIキャラクタ入力処理
- *        入力するキャラクタデータの管理・コマンド実行の判断を行う。
- * @param ctx 制御データ(context)のポインタ
- * @param c   キャラクタ
- * @return 処理結果
- */
-int cli_input_char(cli_context_t *ctx, char c)
-{
-    if (ctx == NULL)
-    {
-        return -1;
-    }
-
-    cli_private_t *priv = get_priv(ctx);
-
-    switch (priv->state)
-    {
-    case PARSE_STATE_NOMAL:
-        if (ESC == c)
-        {
-            priv->state = PARSE_STATE_ESC_WAIT1;
-        }
-        else
-        {
-            cli_char_proc(priv, c);
-        }
-        break;
-
-    case PARSE_STATE_ESC_WAIT1:
-        if ('[' == c)
-        {
-            priv->state = PARSE_STATE_ESC_WAIT2;
-        }
-        else
-        {
-            priv->state = PARSE_STATE_NOMAL;
-        }
-        break;
-
-    case PARSE_STATE_ESC_WAIT2:
-        cli_esc_proc(priv, c);
-
-        priv->state = 0;
-        break;
-
-    default:
-        priv->state = PARSE_STATE_NOMAL;
-        break;
-    }
-
-    return 0;
+    return CLI_CODE_OK;
 }
 
 static void cli_char_proc(cli_private_t *priv, char c)
@@ -512,18 +471,17 @@ static void cli_tokenizer(cli_private_t *priv)
  * @param size テーブルの要素数
  * @return 処理結果
  */
-int cli_command_register(cli_context_t *ctx, const cli_command_t *list, uint16_t size)
+cli_code_t cli_command_register(cli_context_t *ctx, const cli_command_t *list, uint16_t size)
 {
-    if (ctx == NULL) return -1;
-    if (list == NULL) return -1;
-    if (size == 0) return -1;
+    if (ctx == NULL) return CLI_CODE_INVALID_INSTANCE;
+    if ((list == NULL) || (size == 0)) return CLI_CODE_INVALID_ARGUMENT;
 
     cli_private_t *priv = get_priv(ctx);
 
     cli_set_command_list(priv, list);
     cli_set_command_list_size(priv, size);
 
-    return 0;
+    return CLI_CODE_OK;
 }
 
 /**
@@ -531,16 +489,16 @@ int cli_command_register(cli_context_t *ctx, const cli_command_t *list, uint16_t
  * @param ctx  制御データ(context)のポインタ
  * @return 処理結果
  */
-int cli_command_unregister(cli_context_t *ctx)
+cli_code_t cli_command_unregister(cli_context_t *ctx)
 {
-    if (ctx == NULL) return -1;
+    if (ctx == NULL) return CLI_CODE_INVALID_INSTANCE;
 
     cli_private_t *priv = get_priv(ctx);
 
     cli_set_command_list(priv, NULL);
     cli_set_command_list_size(priv, 0);
 
-    return 0;
+    return CLI_CODE_OK;
 }
 
 /**

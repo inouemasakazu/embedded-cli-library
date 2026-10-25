@@ -24,23 +24,6 @@
  ****************************************************************************************************/
 
 /**
- * @brief CLIコマンドハンドラ型
- * @param argc コマンドライン引数の数
- * @param argv コマンドライン引数を格納する文字列配列
- * @return 処理結果
- */
-typedef int (*cli_command_handler_t)(int argc, char **argv);
-
-/**
- * @brief CLIの出力用writeインターフェース
- * @param p 出力データのポインタ
- * @param s 出力データサイズ
- * @return 処理結果
- */
-typedef int (*cli_output_write_t)(const uint8_t *p, uint32_t s);
-
-
-/**
  * @brief インスタンス生成用構造体
  *        本データは公開APIを介してのみ、アクセスが可能。
  *        操作を行った場合は動作の保証ができない。
@@ -50,6 +33,13 @@ typedef struct
     uint32_t opaque[32];
 } cli_context_t;
 
+/**
+ * @brief CLIの出力用writeインターフェース
+ * @param p 出力データのポインタ
+ * @param s 出力データサイズ
+ * @return 処理結果
+ */
+typedef int (*cli_output_write_t)(const uint8_t *p, uint32_t s);
 
 /**
  * @brief CLI利用時の設定データ
@@ -72,14 +62,52 @@ typedef struct
     cli_output_write_t output_write;
 } cli_config_t;
 
+/**
+ * @brief 公開APIのreturn code
+ */
+typedef enum
+{
+    CLI_CODE_OK = 0,
+
+    CLI_CODE_INVALID_INSTANCE,
+    CLI_CODE_INVALID_ARGUMENT,
+    CLI_CODE_MAX
+} cli_code_t;
 
 /**
- * @brief コマンドのデータ
+ * @brief 実行コマンドのreturnコード
+ */
+typedef enum
+{
+    CLI_COMMAND_CODE_OK,
+
+    CLI_COMMAND_CODE_RUNNING,
+    CLI_COMMAND_CODE_SUSPEND,
+    CLI_COMMAND_CODE_FAULT,
+    CLI_COMMAND_CODE_MAX
+} cli_command_code_t;
+
+/**
+ * @brief コマンド定義用データ
+ *        ユーザ定義コマンドは本データ構造を使用して定義します。
+ * @note
+ * 各データの用途を記載します。
+ * - name        : コマンドの名称
+ * - handler     : コマンド実行要求を通知するコマンドハンドラ
+ * - callback    : コマンド停止要求を通知するコールバック
+ * - description : コマンドの説明・概要
+ * 
+ * コマンドを利用するには、本データのnameとhandlerの登録が必要です。
+ * callbackは強制終了等の割り込みシグナルに応じてコマンドを停止させたい場合に使用します。
+ * ワンショットで処理が完了する場合、callbackの登録は必ずしも必要ではありません。
  */
 typedef struct
 {
-    const char *name;
-    cli_command_handler_t handler;
+    const char * name;
+    cli_command_code_t (* handler)(int argc, char **argv);
+    cli_command_code_t (* callback)(void);
+
+    const char * description;
 } cli_command_t;
 
 
@@ -99,25 +127,29 @@ typedef struct
  * @param size      workspaceのメモリサイズ
  * @return 処理結果
  */
-int cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace, size_t size);
+cli_code_t cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace, size_t size);
 
 /**
- * @brief CLI開始
- *        CLIの開始を通知するメッセージと、プロンプト('>')の表示を行う。
- * @param message 開始を通知するメッセージ(必要ない場合はNULLを設定)
+ * @brief 初期化解除
+ * @param ctx       制御データ(context)のポインタ
  * @return 処理結果
  */
-int cli_begin(cli_context_t *ctx, const char *message);
+cli_code_t cli_deinit(cli_context_t *ctx);
 
 /**
- * @brief CLIキャラクタ入力処理
- *        入力するキャラクタデータの管理・コマンド実行の判断を行う。
- * @param ctx 制御データ(context)のポインタ
- * @param c   キャラクタ
+ * @brief メイン処理
+ * @param ctx       制御データ(context)のポインタ
  * @return 処理結果
  */
-int cli_input_char(cli_context_t *ctx, char c);
+cli_code_t cli_process(cli_context_t *ctx);
 
+/**
+ * @brief 文字データ送信
+ * @param ctx       制御データ(context)のポインタ
+ * @param c         入力文字（キャラクタ）
+ * @return 処理結果
+ */
+cli_code_t cli_send_char(cli_context_t *ctx, char c);
 
 /********************
  * Command functions
@@ -131,14 +163,14 @@ int cli_input_char(cli_context_t *ctx, char c);
  * @param size テーブルの要素数
  * @return 処理結果
  */
-int cli_command_register(cli_context_t *ctx, const cli_command_t *list, uint16_t size);
+cli_code_t cli_command_register(cli_context_t *ctx, const cli_command_t *list, uint16_t size);
 
 /**
  * @brief コマンド登録解除
  * @param ctx  制御データ(context)のポインタ
  * @return 処理結果
  */
-int cli_command_unregister(cli_context_t *ctx);
+cli_code_t cli_command_unregister(cli_context_t *ctx);
 
 
 #endif  /* __CLI_H__ */
