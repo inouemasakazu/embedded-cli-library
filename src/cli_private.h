@@ -39,6 +39,17 @@
 
 typedef enum
 {
+    CLI_IMPL_CODE_OK = 0,
+
+    /** FIFO操作時のエラーコード */
+    CLI_IMPL_CODE_FIFO_FULL,
+    CLI_IMPL_CODE_FIFO_EMPTY,
+
+    CLI_IMPL_CODE_MAX
+} cli_impl_code_t;
+
+typedef enum
+{
     PARSE_STATE_NOMAL,
     PARSE_STATE_ESC_WAIT1,
     PARSE_STATE_ESC_WAIT2,
@@ -73,6 +84,12 @@ typedef struct
     const char *prompt;
 
     parse_state_t state;
+
+    /** fifo Data Structure */
+    uint8_t *fifo;
+    uint16_t fifo_size;
+    uint16_t fifo_head;
+    uint16_t fifo_tail;
 
     /** コマンドラインとして管理するテキストデータ */
     cli_text_t text;

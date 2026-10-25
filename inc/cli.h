@@ -49,6 +49,9 @@ typedef struct
     /** プロンプトに表示する文字列*/
     const char *prompt;
 
+    /** 入力可能な文字データのバッファサイズ(byte) */
+    uint16_t max_fifo_size;
+
     /** コマンドラインに割り当てるバッファサイズ(byte)*/
     uint32_t max_line_size;
 
@@ -71,6 +74,8 @@ typedef enum
 
     CLI_CODE_INVALID_INSTANCE,
     CLI_CODE_INVALID_ARGUMENT,
+
+    CLI_CODE_SEND_CHAR_BUSY,
     CLI_CODE_MAX
 } cli_code_t;
 

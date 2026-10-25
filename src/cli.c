@@ -63,6 +63,10 @@ static void cli_tokenizer(cli_private_t *priv);
 static void cli_command_execute(cli_private_t *priv);
 static const cli_command_t *cli_command_find(cli_private_t *priv, const char *name);
 
+static cli_impl_code_t cli_fifo_push(cli_private_t * priv, uint8_t data);
+static cli_impl_code_t cli_fifo_pull(cli_private_t * priv, uint8_t * data);
+static uint16_t cli_fifo_is_items(cli_private_t * priv);
+
 
 static void cli_set_prompt(cli_private_t *priv, const char *prompt);
 static void cli_set_output_write(cli_private_t *priv, cli_output_write_t output_write);
@@ -127,6 +131,19 @@ cli_code_t cli_process(cli_context_t *ctx)
 
     cli_private_t *priv = get_priv(ctx);
 
+    if ( 0 < cli_fifo_is_items( priv ) )
+    {
+        uint8_t c = 0;
+
+        if ( CLI_IMPL_CODE_OK == cli_fifo_pull( priv, &c ) )
+        {
+            char str[2] = { 0 };
+            str[0] = (char)c;
+            str[1] = '\0';
+            output_string( priv, ((const char *)str) );
+        }
+    }
+
     return CLI_CODE_OK;
 }
 
@@ -142,8 +159,19 @@ cli_code_t cli_send_char(cli_context_t *ctx, char c)
 
     cli_private_t *priv = get_priv(ctx);
 
+    if ( CLI_IMPL_CODE_FIFO_FULL == cli_fifo_push(priv, (uint8_t)c) )
+    {
+        /* pushしたデータをprocessが処理しきれていないためBUSYを返す */
+        return CLI_CODE_SEND_CHAR_BUSY;
+    }
+
     return CLI_CODE_OK;
 }
+
+
+/********************
+ * static functions
+ ********************/
 
 /**
  * @brief 設定データ展開
@@ -205,10 +233,15 @@ int cli_workspace_memory_layout(cli_private_t *priv, const cli_config_t *cfg, vo
 
     memset(workspace, 0x00, size);
 
+    priv->fifo                       = workspace;
+    priv->fifo_size                  = cfg->max_fifo_size;
+
+    offset = cfg->max_fifo_size;
+
     priv->text.current_line          = workspace;
     priv->text.current_line_max_size = cfg->max_line_size;
 
-    offset = cfg->max_line_size;
+    offset = offset + cfg->max_line_size;
 
     priv->text.history_buffer        = (workspace + offset);
     priv->text.history_depth         = cfg->depth_history;
@@ -566,6 +599,63 @@ static const cli_command_t *cli_command_find(cli_private_t *priv, const char *na
     }
 
     return NULL;
+}
+
+
+/********************
+ * fifo functions
+ ********************/
+
+/**
+ * データをFIFOにpushする
+ */
+static cli_impl_code_t cli_fifo_push(cli_private_t * priv, uint8_t data)
+{
+    uint16_t next = (priv->fifo_head + 1) % priv->fifo_size;
+
+    if (next == priv->fifo_tail)
+    {
+        /* 空きなし */
+        return CLI_IMPL_CODE_FIFO_FULL;
+    }
+
+    uint8_t *p = priv->fifo;
+    uint16_t offset = priv->fifo_head;
+
+    *(p + offset) = data;
+
+    priv->fifo_head = next;
+
+    return CLI_IMPL_CODE_OK;
+}
+
+/**
+ * データをFIFOからpullする
+ */
+static cli_impl_code_t cli_fifo_pull(cli_private_t * priv, uint8_t * data)
+{
+    if (priv->fifo_head == priv->fifo_tail)
+    {
+        /* データなし */
+        return CLI_IMPL_CODE_FIFO_EMPTY;
+    }
+
+    uint8_t *p = priv->fifo;
+    uint16_t offset = priv->fifo_tail;
+
+    *data = *(p + offset);
+
+    priv->fifo_tail = (priv->fifo_tail + 1) % priv->fifo_size;
+
+    return CLI_IMPL_CODE_OK;
+}
+
+/**
+ * FIFO内の有効データサイズを取得
+ */
+static uint16_t cli_fifo_is_items(cli_private_t * priv)
+{
+    return ((priv->fifo_head + priv->fifo_size) - priv->fifo_tail) % priv->fifo_size;
 }
 
 
