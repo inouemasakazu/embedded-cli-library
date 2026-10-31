@@ -23,6 +23,9 @@
 
 /*** ASCiiコード(制御文字) ***/
 #define NUL                 '\0'    /* null文字 */
+
+#define STX                 0x02    /* テキスト開始 */
+#define ETX                 0x03    /* テキスト終了 */
 #define BS                  '\b'    /* 後退 */
 #define HT                  '\t'    /* 水平タブ */
 #define LF                  '\n'    /* 改行 */
@@ -50,10 +53,29 @@ typedef enum
 
 typedef enum
 {
-    PARSE_STATE_NOMAL,
-    PARSE_STATE_ESC_WAIT1,
-    PARSE_STATE_ESC_WAIT2,
-} parse_state_t;
+    CLI_PARSE_NOMAL = 0,
+    CLI_PARSE_ESC,
+    CLI_PARSE_CSI,
+    CLI_PARSE_MAX
+} cli_parse_t;
+
+typedef enum
+{
+    CLI_EVENT_NONE = 0,
+    CLI_EVENT_TEXT,
+    CLI_EVENT_CURSOR_MOVE,
+    CLI_EVENT_BACKSPACE,
+    CLI_EVENT_ENTER,
+    CLI_EVENT_INPUT_INTERRUPT,
+
+    CLI_EVENT_MAX
+} cli_event_type_t;
+
+typedef struct
+{
+    cli_event_type_t type;
+    char parm[4];
+} cli_event_t;
 
 typedef struct
 {
@@ -83,7 +105,9 @@ typedef struct
 {
     const char *prompt;
 
-    parse_state_t state;
+    cli_parse_t parse_state;
+
+    cli_event_t event;
 
     /** fifo Data Structure */
     uint8_t *fifo;

@@ -50,6 +50,10 @@
 static int cli_set_config(cli_private_t *priv, const cli_config_t *cfg, void *workspace, size_t size);
 static int cli_workspace_memory_layout(cli_private_t *priv, const cli_config_t *cfg, void *workspace, size_t size);
 
+static void cli_input_analysis( cli_private_t *priv, char c );
+
+static void cli_emit_event( cli_private_t *priv, bool is_control, char command );
+
 static void cli_char_proc(cli_private_t *priv, char c);
 static void cli_esc_proc(cli_private_t *priv, char c);
 
@@ -131,16 +135,13 @@ cli_code_t cli_process(cli_context_t *ctx)
 
     cli_private_t *priv = get_priv(ctx);
 
-    if ( 0 < cli_fifo_is_items( priv ) )
+    while ( cli_fifo_is_items( priv ) )
     {
-        uint8_t c = 0;
+        uint8_t c;
 
         if ( CLI_IMPL_CODE_OK == cli_fifo_pull( priv, &c ) )
         {
-            char str[2] = { 0 };
-            str[0] = (char)c;
-            str[1] = '\0';
-            output_string( priv, ((const char *)str) );
+            cli_input_analysis( priv, ((char)c) );
         }
     }
 
@@ -254,6 +255,125 @@ int cli_workspace_memory_layout(cli_private_t *priv, const cli_config_t *cfg, vo
     offset = offset + priv->argument.max_size;
 
     return CLI_CODE_OK;
+}
+
+/**
+ * @brief 入力解析
+ *        キャラクタ・制御文字・エスケープシーケンスの解析を行い、解析結果に応じたイベントを発行する
+ */
+static void cli_input_analysis( cli_private_t *priv, char c )
+{
+    switch ( priv->parse_state )
+    {
+    case CLI_PARSE_NOMAL:
+        if ( (0 < c) && (c <= 31) )
+        {
+            if ( '\e' == c )
+            {
+                /* エスケープコード（ESC）を確認 */
+                /* ANSI識別文字の受信待ちに遷移 */
+                priv->parse_state = CLI_PARSE_ESC;
+            }
+            else
+            {
+                /* 制御文字 */
+                cli_emit_event( priv, 1, c );
+            }
+        }
+        else
+        {
+            /* キャラクタ */
+            cli_emit_event( priv, 0, c );
+        }
+        break;
+
+    case CLI_PARSE_ESC:
+        if ( '[' == c )
+        {
+            /* ANSI識別文字を確認 */
+            /* シーケンス識別文字の受信待ちに遷移 */
+            priv->parse_state = CLI_PARSE_CSI;
+        }
+        else
+        {
+            /* 不正なシーケンスは無視して通常状態に戻す */
+            priv->parse_state = CLI_PARSE_NOMAL;
+        }
+
+        break;
+
+    case CLI_PARSE_CSI:
+        cli_emit_event( priv, 1, c );
+
+        priv->parse_state = CLI_PARSE_NOMAL;
+        break;
+
+    default:
+        break;
+    }
+}
+
+/**
+ * @brief イベント発行
+ *        引数のcommandに応じたイベントを発行する
+ */
+static void cli_emit_event( cli_private_t *priv, bool is_control, char command )
+{
+    if ( is_control )
+    {
+        /* エスケープシーケンス・制御文字に対応するイベントを発行 */
+        if ( ('A' == command) || ('B' == command) || ('C' == command) || ('D' == command) )
+        {
+            priv->event.type    = CLI_EVENT_CURSOR_MOVE;
+            priv->event.parm[0] = command;
+            priv->event.parm[1] = '\r';
+            priv->event.parm[2] = '\n';
+            priv->event.parm[3] = '\0';
+
+            output_string(priv, "[DEBUG] CLI_EVENT_CURSOR_MOVE : ");
+            output_string(priv, (const char *)priv->event.parm);
+        }
+        else if ( (LF == command) || (CR == command) )
+        {
+            priv->event.type    = CLI_EVENT_ENTER;
+            priv->event.parm[0] = '\0';
+
+            output_string(priv, "[DEBUG] CLI_EVENT_ENTER\r\n");
+        }
+        else if ( BS == command )
+        {
+            priv->event.type    = CLI_EVENT_BACKSPACE;
+            priv->event.parm[0] = '\0';
+
+            output_string(priv, "[DEBUG] CLI_EVENT_BACKSPACE\r\n");
+        }
+        else if ( ETX == command )
+        {
+            priv->event.type   = CLI_EVENT_INPUT_INTERRUPT;
+
+            output_string(priv, "[DEBUG] CLI_EVENT_INPUT_INTERRUPT\r\n");
+        }
+        else
+        {
+            /* 該当するイベントがない */
+            priv->event.type    = CLI_EVENT_NONE;
+            priv->event.parm[0] = '\0';
+
+            output_string(priv, "[DEBUG] CLI_EVENT_NONE\r\n");
+        }
+    }
+    else
+    {
+        /* テキストデータのイベントを発行 */
+        priv->event.type    = CLI_EVENT_TEXT;
+        priv->event.parm[0] = command;
+        priv->event.parm[1] = '\r';
+        priv->event.parm[2] = '\n';
+        priv->event.parm[3] = '\0';
+
+        output_string(priv, "[DEBUG] CLI_EVENT_TEXT : ");
+        output_string(priv, (const char *)priv->event.parm);
+    }
 }
 
 static void cli_char_proc(cli_private_t *priv, char c)
