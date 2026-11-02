@@ -34,77 +34,69 @@
  * Private Functions
  ****************************************************************************************************/
 
-static int output_write(cli_private_t *priv, const char *p, uint32_t s);
+static cli_impl_code_t output_write( cli_private_t * priv, const char * p, uint32_t s );
 
 /**
  * @brief キャラクタ出力
  * @param ctx 制御データ(context)のポインタ
  * @param c キャラクタ
- * @return 正常(0) / 失敗(-1)
+ * @return cli_code_t
  */
-int cli_putc(cli_context_t *ctx, char c)
+cli_code_t cli_putc( cli_context_t * ctx, char c )
 {
-    if (ctx == NULL) return -1;
+    if (ctx == NULL) return CLI_CODE_INVALID_INSTANCE;
 
     cli_private_t *priv = get_priv(ctx);
-    char buf[8] = { 0 };
 
-    buf[0] = c;
-    buf[1] = '\0';
+    if ( output_write( priv, (const char *)&c, 1 ) != CLI_IMPL_CODE_OK )
+    {
+        return CLI_ERROR_OUTPUT_WRITE_FAILED;
+    }
 
-    return output_write(priv, (const char *)buf, strlen((const char *)buf));
+    return CLI_CODE_OK;
 }
 
 /**
  * @brief 文字列出力
  * @param ctx 制御データ(context)のポインタ
- * @param s 文字列のポインタ
- * @return 正常(0) / 失敗(-1) / CB未登録(1)
+ * @param p 文字列のポインタ
+ * @return cli_code_t
  */
-int cli_puts(cli_context_t *ctx, const char *s)
+cli_code_t cli_puts( cli_context_t * ctx, const char * p )
 {
-    if (ctx == NULL) return -1;
+    if (ctx == NULL) return CLI_CODE_INVALID_INSTANCE;
 
     cli_private_t *priv = get_priv(ctx);
 
-    size_t len = strlen(s);
-
-    if (0 < len)
+    if ( '\0' == *p )
     {
-        int ret = 0;
-
-        ret = output_write(priv, s, len);
-        if (ret != 0)
+        if ( output_write( priv, p, strlen(p) ) != CLI_IMPL_CODE_OK )
         {
-            return -2;
-        }
-
-        ret = output_write(priv, "\r\n", 3);
-        if (ret != 0)
-        {
-            return -2;
+            return CLI_ERROR_OUTPUT_WRITE_FAILED;
         }
     }
 
-    return 1;
+    if ( output_write(priv, "\r\n", 2) != CLI_IMPL_CODE_OK )
+    {
+        return CLI_ERROR_OUTPUT_WRITE_FAILED;
+    }
+
+    return CLI_CODE_OK;
 }
 
 /**
  * @brief 文字列出力（内部処理用）
  * @param priv 制御データ(context)のポインタ
  * @param p 文字列のポインタ
- * @return 正常(0) / 失敗(-1) / CB未登録(1)
  */
-int output_string(cli_private_t *priv, const char *p)
+void output_string( cli_private_t * priv, const char * p )
 {
-    size_t s = strlen(p);
-
-    if (0 < s)
+    if ( output_write( priv, p, strlen(p) ) != CLI_IMPL_CODE_OK )
     {
-        return output_write(priv, p, s);
+        /* 内部処理用のためエラーハンドリングはしない         */
+        /* 今後、CLI用のprintf()が実装される予定              */
+        /* その際に、本関数からprintf()に置換される可能性あり */
     }
-
-    return -1;
 }
 
 
@@ -117,16 +109,23 @@ int output_string(cli_private_t *priv, const char *p)
  * @param priv 制御データ(context)のポインタ
  * @param p 出力データのポインタ
  * @param s 出力データサイズ
- * @return 正常(0) / 失敗(-1) / CB未登録(1)
+ * @return cli_impl_code_t
  */
-static int output_write(cli_private_t *priv, const char *p, uint32_t s)
+static cli_impl_code_t output_write( cli_private_t * priv, const char * p, uint32_t s )
 {
-    cli_output_write_t output_write = priv->output_write;
+    cli_output_t * output = (cli_output_t *)priv->output;
 
-    if (output_write)
+    if ( output->write )
     {
-        return output_write((const uint8_t *)p, s);
+        if ( output->write( (const uint8_t *)p, s ) == CLI_OUTPUT_ERROR )
+        {
+            return CLI_IMPL_ERROR_OUTPUT_WRITE_FAILED;
+        }
+    }
+    else
+    {
+        return CLI_IMPL_ERROR_OUTPUT_NOT_REGISTERED;
     }
 
-    return 1;
+    return CLI_IMPL_CODE_OK;
 }

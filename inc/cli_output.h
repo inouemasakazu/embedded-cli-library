@@ -34,17 +34,17 @@
  * @brief キャラクタ出力
  * @param ctx 制御データ(context)のポインタ
  * @param c キャラクタ
- * @return 正常(0) / 失敗(-1)
+ * @return cli_code_t
  */
-int cli_putc(cli_context_t *ctx, char c);
+cli_code_t cli_putc( cli_context_t * ctx, char c );
 
 /**
  * @brief 文字列出力
  * @param ctx 制御データ(context)のポインタ
- * @param s 文字列のポインタ
- * @return 正常(0) / 失敗(-1) / CB未登録(1)
+ * @param p 文字列のポインタ
+ * @return cli_code_t
  */
-int cli_puts(cli_context_t *ctx, const char *s);
+cli_code_t cli_puts( cli_context_t * ctx, const char * p );
 
 
 #endif  /* __CLI_OUTPUT_H__ */

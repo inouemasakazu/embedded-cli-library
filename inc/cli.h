@@ -34,14 +34,6 @@ typedef struct
 } cli_context_t;
 
 /**
- * @brief CLIの出力用writeインターフェース
- * @param p 出力データのポインタ
- * @param s 出力データサイズ
- * @return 処理結果
- */
-typedef int (*cli_output_write_t)(const uint8_t *p, uint32_t s);
-
-/**
  * @brief CLI利用時の設定データ
  */
 typedef struct
@@ -60,9 +52,6 @@ typedef struct
 
     /** コマンドラインの履歴件数*/
     uint32_t depth_history;
-
-    /** 出力用writeインターフェース*/
-    cli_output_write_t output_write;
 } cli_config_t;
 
 /**
@@ -76,6 +65,10 @@ typedef enum
     CLI_CODE_INVALID_ARGUMENT,
 
     CLI_CODE_SEND_CHAR_BUSY,
+
+    CLI_ERROR_OUTPUT_WRITE_FAILED,
+    CLI_ERROR_OUTPUT_NOT_REGISTERED,
+
     CLI_CODE_MAX
 } cli_code_t;
 
@@ -115,6 +108,24 @@ typedef struct
     const char * description;
 } cli_command_t;
 
+
+/**
+ * @brief writeインターフェースのエラーコード
+ */
+typedef enum
+{
+    CLI_OUTPUT_OK = 0,
+    CLI_OUTPUT_ERROR,
+    CLI_OUTPUT_MAX
+} cli_output_code_t;
+
+/**
+ * @brief writeインターフェース用構造体定義
+ */
+typedef struct
+{
+    cli_output_code_t (* write)( const uint8_t * p, uint32_t s );
+} cli_output_t;
 
 /****************************************************************************************************
  * Public Variables

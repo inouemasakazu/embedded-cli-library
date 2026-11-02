@@ -75,7 +75,7 @@ static uint16_t cli_fifo_is_items(cli_private_t * priv);
 
 
 static void cli_set_prompt(cli_private_t *priv, const char *prompt);
-static void cli_set_output_write(cli_private_t *priv, cli_output_write_t output_write);
+static void cli_set_output(cli_private_t *priv, cli_output_t * output );
 static void cli_set_command_list(cli_private_t *priv, const cli_command_t *list);
 static void cli_set_command_list_size(cli_private_t *priv, uint16_t size);
 
@@ -226,9 +226,6 @@ static int cli_set_config(cli_private_t *priv, const cli_config_t *cfg, void *wo
     {
         /* プロンプト設定 */
         cli_set_prompt(priv, cfg->prompt);
-
-        /* writeインタフェース設定 */
-        cli_set_output_write(priv, cfg->output_write);
     }
     else
     {
@@ -811,11 +808,11 @@ static void cli_set_prompt(cli_private_t *priv, const char *prompt)
  * @brief 出力用writeインターフェース登録
  *        CLIが使用するwriteインターフェースの登録を行う。
  */
-static void cli_set_output_write(cli_private_t *priv, cli_output_write_t output_write)
+static void cli_set_output( cli_private_t * priv, cli_output_t * output )
 {
-    if (output_write)
+    if (output)
     {
-        priv->output_write = output_write;
+        priv->output = output;
     }
 }
 

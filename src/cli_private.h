@@ -48,6 +48,9 @@ typedef enum
     CLI_IMPL_CODE_FIFO_FULL,
     CLI_IMPL_CODE_FIFO_EMPTY,
 
+    CLI_IMPL_ERROR_OUTPUT_WRITE_FAILED,
+    CLI_IMPL_ERROR_OUTPUT_NOT_REGISTERED,
+
     CLI_IMPL_CODE_MAX
 } cli_impl_code_t;
 
@@ -135,8 +138,7 @@ typedef struct
     const cli_command_t *command_list;
     uint16_t list_size;
 
-    /** writeインターフェースデータ */
-    cli_output_write_t output_write;
+    const cli_output_t * output;
 } cli_private_t;
 
 
@@ -154,7 +156,7 @@ typedef struct
  * @param p 文字列のポインタ
  * @return 正常(0) / 失敗(-1) / CB未登録(1)
  */
-int output_string(cli_private_t *priv, const char *p);
+void output_string(cli_private_t *priv, const char *p);
 
 /**
  * @brief 型変換処理
