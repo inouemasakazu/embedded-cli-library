@@ -44,16 +44,16 @@ static cli_impl_code_t output_write( cli_private_t * priv, const char * p, uint3
  */
 cli_code_t cli_putc( cli_context_t * ctx, char c )
 {
-    if (ctx == NULL) return CLI_CODE_INVALID_INSTANCE;
+    if (ctx == NULL) return CLI_ERROR_INVALID_INSTANCE;
 
     cli_private_t *priv = get_priv(ctx);
 
-    if ( output_write( priv, (const char *)&c, 1 ) != CLI_IMPL_CODE_OK )
+    if ( output_write( priv, (const char *)&c, 1 ) != CLI_IMPL_OK )
     {
         return CLI_ERROR_OUTPUT_WRITE_FAILED;
     }
 
-    return CLI_CODE_OK;
+    return CLI_OK;
 }
 
 /**
@@ -64,24 +64,24 @@ cli_code_t cli_putc( cli_context_t * ctx, char c )
  */
 cli_code_t cli_puts( cli_context_t * ctx, const char * p )
 {
-    if (ctx == NULL) return CLI_CODE_INVALID_INSTANCE;
+    if (ctx == NULL) return CLI_ERROR_INVALID_INSTANCE;
 
     cli_private_t *priv = get_priv(ctx);
 
     if ( '\0' == *p )
     {
-        if ( output_write( priv, p, strlen(p) ) != CLI_IMPL_CODE_OK )
+        if ( output_write( priv, p, strlen(p) ) != CLI_IMPL_OK )
         {
             return CLI_ERROR_OUTPUT_WRITE_FAILED;
         }
     }
 
-    if ( output_write(priv, "\r\n", 2) != CLI_IMPL_CODE_OK )
+    if ( output_write(priv, "\r\n", 2) != CLI_IMPL_OK )
     {
         return CLI_ERROR_OUTPUT_WRITE_FAILED;
     }
 
-    return CLI_CODE_OK;
+    return CLI_OK;
 }
 
 /**
@@ -91,7 +91,7 @@ cli_code_t cli_puts( cli_context_t * ctx, const char * p )
  */
 void output_string( cli_private_t * priv, const char * p )
 {
-    if ( output_write( priv, p, strlen(p) ) != CLI_IMPL_CODE_OK )
+    if ( output_write( priv, p, strlen(p) ) != CLI_IMPL_OK )
     {
         /* 内部処理用のためエラーハンドリングはしない         */
         /* 今後、CLI用のprintf()が実装される予定              */
@@ -127,5 +127,5 @@ static cli_impl_code_t output_write( cli_private_t * priv, const char * p, uint3
         return CLI_IMPL_ERROR_OUTPUT_NOT_REGISTERED;
     }
 
-    return CLI_IMPL_CODE_OK;
+    return CLI_IMPL_OK;
 }

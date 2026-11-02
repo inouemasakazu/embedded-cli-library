@@ -33,38 +33,18 @@ typedef struct
     uint32_t opaque[32];
 } cli_context_t;
 
-/**
- * @brief CLI利用時の設定データ
- */
-typedef struct
-{
-    /** プロンプトに表示する文字列*/
-    const char *prompt;
-
-    /** 入力可能な文字データのバッファサイズ(byte) */
-    uint16_t max_fifo_size;
-
-    /** コマンドラインに割り当てるバッファサイズ(byte)*/
-    uint32_t max_line_size;
-
-    /** コマンドライン引数のvector数*/
-    uint32_t depth_argv;
-
-    /** コマンドラインの履歴件数*/
-    uint32_t depth_history;
-} cli_config_t;
 
 /**
- * @brief 公開APIのreturn code
+ * @brief CLIのエラーコード
  */
 typedef enum
 {
-    CLI_CODE_OK = 0,
+    CLI_OK = 0,
 
-    CLI_CODE_INVALID_INSTANCE,
-    CLI_CODE_INVALID_ARGUMENT,
+    CLI_ERROR_INVALID_INSTANCE,
+    CLI_ERROR_INVALID_ARGUMENT,
 
-    CLI_CODE_SEND_CHAR_BUSY,
+    CLI_ERROR_SEND_CHAR_BUSY,
 
     CLI_ERROR_OUTPUT_WRITE_FAILED,
     CLI_ERROR_OUTPUT_NOT_REGISTERED,
@@ -73,16 +53,17 @@ typedef enum
 } cli_code_t;
 
 /**
- * @brief 実行コマンドのreturnコード
+ * @brief コマンドのエラーコード
  */
 typedef enum
 {
-    CLI_COMMAND_CODE_OK,
+    CLI_COMMAND_OK,
 
-    CLI_COMMAND_CODE_RUNNING,
-    CLI_COMMAND_CODE_SUSPEND,
-    CLI_COMMAND_CODE_FAULT,
-    CLI_COMMAND_CODE_MAX
+    CLI_COMMAND_RUNNING,
+    CLI_COMMAND_SUSPEND,
+    CLI_COMMAND_ERROR_NOT_FOUND,
+
+    CLI_COMMAND_MAX
 } cli_command_code_t;
 
 /**
@@ -126,6 +107,28 @@ typedef struct
 {
     cli_output_code_t (* write)( const uint8_t * p, uint32_t s );
 } cli_output_t;
+
+
+/**
+ * @brief CLI利用時の設定データ
+ */
+typedef struct
+{
+    /** プロンプトに表示する文字列*/
+    const char *prompt;
+
+    /** 入力可能な文字データのバッファサイズ(byte) */
+    uint16_t max_fifo_size;
+
+    /** コマンドラインに割り当てるバッファサイズ(byte)*/
+    uint32_t max_line_size;
+
+    /** コマンドライン引数のvector数*/
+    uint32_t depth_argv;
+
+    /** コマンドラインの履歴件数*/
+    uint32_t depth_history;
+} cli_config_t;
 
 /****************************************************************************************************
  * Public Variables

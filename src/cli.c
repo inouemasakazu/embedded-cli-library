@@ -104,7 +104,7 @@ const static cli_handler cli_handler_matrix[CLI_SYSTEM_STATE_MAX][CLI_EVENT_MAX]
  */
 cli_code_t cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace, size_t size)
 {
-    if (ctx == NULL) return CLI_CODE_INVALID_INSTANCE;
+    if (ctx == NULL) return CLI_ERROR_INVALID_INSTANCE;
 
     cli_private_t *priv = get_priv(ctx);
 
@@ -117,7 +117,7 @@ cli_code_t cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace
         return -2;
     }
 
-    return CLI_CODE_OK;
+    return CLI_OK;
 }
 
 /**
@@ -127,14 +127,14 @@ cli_code_t cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace
  */
 cli_code_t cli_deinit(cli_context_t *ctx)
 {
-    if (ctx == NULL) return CLI_CODE_INVALID_INSTANCE;
+    if (ctx == NULL) return CLI_ERROR_INVALID_INSTANCE;
 
     cli_private_t *priv = get_priv(ctx);
 
     /* メモリ0クリア */
     memset(priv, 0, sizeof(*priv));
 
-    return CLI_CODE_OK;
+    return CLI_OK;
 }
 
 /**
@@ -144,7 +144,7 @@ cli_code_t cli_deinit(cli_context_t *ctx)
  */
 cli_code_t cli_process(cli_context_t *ctx)
 {
-    if (ctx == NULL) return CLI_CODE_INVALID_INSTANCE;
+    if (ctx == NULL) return CLI_ERROR_INVALID_INSTANCE;
 
     cli_private_t *priv = get_priv(ctx);
 
@@ -153,7 +153,7 @@ cli_code_t cli_process(cli_context_t *ctx)
         uint8_t c;
         cli_handler handler = NULL;
 
-        if ( CLI_IMPL_CODE_OK == cli_fifo_pull( priv, &c ) )
+        if ( CLI_IMPL_OK == cli_fifo_pull( priv, &c ) )
         {
             cli_input_analysis( priv, ((char)c) );
         }
@@ -180,7 +180,7 @@ cli_code_t cli_process(cli_context_t *ctx)
         }
     }
 
-    return CLI_CODE_OK;
+    return CLI_OK;
 }
 
 /**
@@ -191,17 +191,17 @@ cli_code_t cli_process(cli_context_t *ctx)
  */
 cli_code_t cli_send_char(cli_context_t *ctx, char c)
 {
-    if (ctx == NULL) return CLI_CODE_INVALID_INSTANCE;
+    if (ctx == NULL) return CLI_ERROR_INVALID_INSTANCE;
 
     cli_private_t *priv = get_priv(ctx);
 
-    if ( CLI_IMPL_CODE_FIFO_FULL == cli_fifo_push(priv, (uint8_t)c) )
+    if ( CLI_IMPL_ERROR_FIFO_FULL == cli_fifo_push(priv, (uint8_t)c) )
     {
         /* pushしたデータをprocessが処理しきれていないためBUSYを返す */
-        return CLI_CODE_SEND_CHAR_BUSY;
+        return CLI_ERROR_SEND_CHAR_BUSY;
     }
 
-    return CLI_CODE_OK;
+    return CLI_OK;
 }
 
 
@@ -232,7 +232,7 @@ static int cli_set_config(cli_private_t *priv, const cli_config_t *cfg, void *wo
         return -2;
     }
 
-    return CLI_CODE_OK;
+    return CLI_OK;
 }
 
 /**
@@ -286,7 +286,7 @@ int cli_workspace_memory_layout(cli_private_t *priv, const cli_config_t *cfg, vo
 
     offset = offset + priv->argument.max_size;
 
-    return CLI_CODE_OK;
+    return CLI_OK;
 }
 
 /**
@@ -630,15 +630,15 @@ static void cli_line_redisplay( cli_private_t * priv )
  */
 cli_code_t cli_command_register(cli_context_t *ctx, const cli_command_t *list, uint16_t size)
 {
-    if (ctx == NULL) return CLI_CODE_INVALID_INSTANCE;
-    if ((list == NULL) || (size == 0)) return CLI_CODE_INVALID_ARGUMENT;
+    if (ctx == NULL) return CLI_ERROR_INVALID_INSTANCE;
+    if ((list == NULL) || (size == 0)) return CLI_ERROR_INVALID_ARGUMENT;
 
     cli_private_t *priv = get_priv(ctx);
 
     cli_set_command_list(priv, list);
     cli_set_command_list_size(priv, size);
 
-    return CLI_CODE_OK;
+    return CLI_OK;
 }
 
 /**
@@ -648,14 +648,14 @@ cli_code_t cli_command_register(cli_context_t *ctx, const cli_command_t *list, u
  */
 cli_code_t cli_command_unregister(cli_context_t *ctx)
 {
-    if (ctx == NULL) return CLI_CODE_INVALID_INSTANCE;
+    if (ctx == NULL) return CLI_ERROR_INVALID_INSTANCE;
 
     cli_private_t *priv = get_priv(ctx);
 
     cli_set_command_list(priv, NULL);
     cli_set_command_list_size(priv, 0);
 
-    return CLI_CODE_OK;
+    return CLI_OK;
 }
 
 /**
@@ -740,7 +740,7 @@ static cli_impl_code_t cli_fifo_push(cli_private_t * priv, uint8_t data)
     if (next == priv->fifo_tail)
     {
         /* 空きなし */
-        return CLI_IMPL_CODE_FIFO_FULL;
+        return CLI_IMPL_ERROR_FIFO_FULL;
     }
 
     uint8_t *p = priv->fifo;
@@ -750,7 +750,7 @@ static cli_impl_code_t cli_fifo_push(cli_private_t * priv, uint8_t data)
 
     priv->fifo_head = next;
 
-    return CLI_IMPL_CODE_OK;
+    return CLI_IMPL_OK;
 }
 
 /**
@@ -761,7 +761,7 @@ static cli_impl_code_t cli_fifo_pull(cli_private_t * priv, uint8_t * data)
     if (priv->fifo_head == priv->fifo_tail)
     {
         /* データなし */
-        return CLI_IMPL_CODE_FIFO_EMPTY;
+        return CLI_IMPL_ERROR_FIFO_EMPTY;
     }
 
     uint8_t *p = priv->fifo;
@@ -771,7 +771,7 @@ static cli_impl_code_t cli_fifo_pull(cli_private_t * priv, uint8_t * data)
 
     priv->fifo_tail = (priv->fifo_tail + 1) % priv->fifo_size;
 
-    return CLI_IMPL_CODE_OK;
+    return CLI_IMPL_OK;
 }
 
 /**
