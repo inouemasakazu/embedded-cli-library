@@ -38,6 +38,7 @@
 /****************************************************************************************************
  * Private typedef
  ****************************************************************************************************/
+typedef void (* cli_handler)( cli_private_t *priv, cli_event_t ev );
 
 /****************************************************************************************************
  * Private Variables
@@ -54,9 +55,16 @@ static void cli_input_analysis( cli_private_t *priv, char c );
 
 static void cli_emit_event( cli_private_t *priv, bool is_control, char command );
 
-static void cli_enter(cli_private_t *priv);
-static void cli_tokenizer(cli_private_t *priv);
+static void cli_event_none( cli_private_t *priv, cli_event_t ev );
+static void cli_event_text( cli_private_t *priv, cli_event_t ev );
+static void cli_event_cursor_move( cli_private_t *priv, cli_event_t ev );
+static void cli_event_backspace( cli_private_t *priv, cli_event_t ev );
+static void cli_event_enter( cli_private_t *priv, cli_event_t ev );
+static void cli_event_input_interrupt( cli_private_t *priv, cli_event_t ev );
 
+static void cli_line_redisplay( cli_private_t * priv );
+
+static void cli_tokenizer(cli_private_t *priv);
 
 static void cli_command_execute(cli_private_t *priv);
 static const cli_command_t *cli_command_find(cli_private_t *priv, const char *name);
@@ -73,6 +81,17 @@ static void cli_set_command_list_size(cli_private_t *priv, uint16_t size);
 
 static const cli_command_t *cli_get_command_list(cli_private_t *priv);
 static uint16_t cli_get_command_list_size(cli_private_t *priv);
+
+/**
+ * @brief ステートマシン関数マトリクス
+ *        状態×イベントの組み合わせによる関数マトリクス
+ */
+const static cli_handler cli_handler_matrix[CLI_SYSTEM_STATE_MAX][CLI_EVENT_MAX] =
+{
+    /* [STATE / EVENT TYPE]   [ CLI_EVENT_NONE, CLI_EVENT_TEXT, CLI_EVENT_CURSOR_MOVE, CLI_EVENT_BACKSPACE, CLI_EVENT_ENTER, CLI_EVENT_INPUT_INTERRUPT ] */
+    [CLI_SYSTEM_STATE_IDLE   ]{ cli_event_none, cli_event_text, cli_event_cursor_move, cli_event_backspace, cli_event_enter, cli_event_none            },
+    [CLI_SYSTEM_STATE_RUNNING]{ cli_event_none, cli_event_none, cli_event_none       , cli_event_none     , cli_event_none , cli_event_input_interrupt }
+};
 
 
 /**
@@ -132,10 +151,32 @@ cli_code_t cli_process(cli_context_t *ctx)
     while ( cli_fifo_is_items( priv ) )
     {
         uint8_t c;
+        cli_handler handler = NULL;
 
         if ( CLI_IMPL_CODE_OK == cli_fifo_pull( priv, &c ) )
         {
             cli_input_analysis( priv, ((char)c) );
+        }
+
+        switch ( priv->system )
+        {
+        case CLI_SYSTEM_STATE_IDLE:
+            handler = cli_handler_matrix[CLI_SYSTEM_STATE_IDLE][priv->event.type];
+
+            if (handler)
+            {
+                handler( priv, priv->event );
+
+                cli_line_redisplay( priv );
+            }
+            break;
+
+        case CLI_SYSTEM_STATE_RUNNING:
+            handler = cli_handler_matrix[CLI_SYSTEM_STATE_RUNNING][priv->event.type];
+            break;
+
+        default:
+            break;
         }
     }
 
@@ -233,7 +274,7 @@ int cli_workspace_memory_layout(cli_private_t *priv, const cli_config_t *cfg, vo
 
     offset = cfg->max_fifo_size;
 
-    priv->text.current_line          = workspace;
+    priv->text.current_line          = (workspace + offset);
     priv->text.current_line_max_size = cfg->max_line_size;
 
     offset = offset + cfg->max_line_size;
@@ -313,6 +354,9 @@ static void cli_input_analysis( cli_private_t *priv, char c )
  */
 static void cli_emit_event( cli_private_t *priv, bool is_control, char command )
 {
+    priv->event.type    = CLI_EVENT_NONE;
+    priv->event.parm[0] = 0;
+
     if ( is_control )
     {
         /* エスケープシーケンス・制御文字に対応するイベントを発行 */
@@ -320,32 +364,32 @@ static void cli_emit_event( cli_private_t *priv, bool is_control, char command )
         {
             priv->event.type    = CLI_EVENT_CURSOR_MOVE;
             priv->event.parm[0] = command;
-            priv->event.parm[1] = '\r';
-            priv->event.parm[2] = '\n';
-            priv->event.parm[3] = '\0';
+            // priv->event.parm[1] = '\r';
+            // priv->event.parm[2] = '\n';
+            // priv->event.parm[3] = '\0';
 
-            output_string(priv, "[DEBUG] CLI_EVENT_CURSOR_MOVE : ");
-            output_string(priv, (const char *)priv->event.parm);
+            // output_string(priv, "[DEBUG] CLI_EVENT_CURSOR_MOVE : ");
+            // output_string(priv, (const char *)priv->event.parm);
         }
         else if ( (LF == command) || (CR == command) )
         {
             priv->event.type    = CLI_EVENT_ENTER;
             priv->event.parm[0] = '\0';
 
-            output_string(priv, "[DEBUG] CLI_EVENT_ENTER\r\n");
+            // output_string(priv, "[DEBUG] CLI_EVENT_ENTER\r\n");
         }
         else if ( BS == command )
         {
             priv->event.type    = CLI_EVENT_BACKSPACE;
             priv->event.parm[0] = '\0';
 
-            output_string(priv, "[DEBUG] CLI_EVENT_BACKSPACE\r\n");
+            // output_string(priv, "[DEBUG] CLI_EVENT_BACKSPACE\r\n");
         }
         else if ( ETX == command )
         {
             priv->event.type   = CLI_EVENT_INPUT_INTERRUPT;
 
-            output_string(priv, "[DEBUG] CLI_EVENT_INPUT_INTERRUPT\r\n");
+            // output_string(priv, "[DEBUG] CLI_EVENT_INPUT_INTERRUPT\r\n");
         }
         else
         {
@@ -353,7 +397,7 @@ static void cli_emit_event( cli_private_t *priv, bool is_control, char command )
             priv->event.type    = CLI_EVENT_NONE;
             priv->event.parm[0] = '\0';
 
-            output_string(priv, "[DEBUG] CLI_EVENT_NONE\r\n");
+            // output_string(priv, "[DEBUG] CLI_EVENT_NONE\r\n");
         }
     }
     else
@@ -361,26 +405,91 @@ static void cli_emit_event( cli_private_t *priv, bool is_control, char command )
         /* テキストデータのイベントを発行 */
         priv->event.type    = CLI_EVENT_TEXT;
         priv->event.parm[0] = command;
-        priv->event.parm[1] = '\r';
-        priv->event.parm[2] = '\n';
-        priv->event.parm[3] = '\0';
+        // priv->event.parm[1] = '\r';
+        // priv->event.parm[2] = '\n';
+        // priv->event.parm[3] = '\0';
 
-        output_string(priv, "[DEBUG] CLI_EVENT_TEXT : ");
-        output_string(priv, (const char *)priv->event.parm);
+        // output_string(priv, "[DEBUG] CLI_EVENT_TEXT : ");
+        // output_string(priv, (const char *)priv->event.parm);
     }
 }
 
+/**
+ * @brief イベント処理「CLI_EVENT_NONE」
+ */
+static void cli_event_none( cli_private_t *priv, cli_event_t ev )
+{
+    /* DO NOTHING */
+}
 
 /**
- * @brief ENTER入力時処理
- *        現在行用のバッファが保持するテキストデータをコマンドラインとして確定し、コマンドラインに以下の処理を行う。
- *        - 現在のテキストデータを履歴データとして保存する。
- *        - コマンドラインのトークン化を行う。
- *        - コマンドハンドラの実行。
- * @param priv 制御データ(context)のポインタ
- * @return None
+ * @brief イベント処理「CLI_EVENT_TEXT」
  */
-static void cli_enter(cli_private_t *priv)
+static void cli_event_text( cli_private_t *priv, cli_event_t ev )
+{
+    /* コマンドラインにキャラクタを追加 */
+    cli_text_add_char( priv, ev.parm[0] );
+}
+
+/**
+ * @brief イベント処理「CLI_EVENT_CURSOR_MOVE」
+ */
+static void cli_event_cursor_move( cli_private_t *priv, cli_event_t ev )
+{
+    const char * text = NULL;
+
+    switch ( ev.parm[0] )
+    {
+    case 'A':
+    case 'B':
+        /* 履歴の参照 */
+        if ( 'A' == ev.parm[0] )
+        {
+            text = cli_text_get_history_prev(priv);
+        }
+        else
+        {
+            text = cli_text_get_history_next(priv);
+        }
+
+        if (text)
+        {
+            /* 現在のテキストは消去 */
+            cli_text_delete_text(priv);
+
+            /* 履歴から取得したテキストを、現在行のテキストとして追加する */
+            cli_text_add_text(priv, text);
+        }
+        break;
+
+    case 'C':
+        /* カーソル右移動 */
+        cli_text_cursor_right(priv);
+        break;
+
+    case 'D':
+        /* カーソル左移動 */
+        cli_text_cursor_left(priv);
+        break;
+
+    default:
+        /* DO NOTHING */
+        break;
+    }
+}
+
+/**
+ * @brief イベント処理「CLI_EVENT_BACKSPACE」
+ */
+static void cli_event_backspace( cli_private_t *priv, cli_event_t ev )
+{
+    cli_text_delete_char( priv );
+}
+
+/**
+ * @brief イベント処理「CLI_EVENT_ENTER」
+ */
+static void cli_event_enter( cli_private_t *priv, cli_event_t ev )
 {
     char *text = (char *)cli_text_get_current_line(priv);
     size_t text_len = strlen((const char *)text);
@@ -404,6 +513,14 @@ static void cli_enter(cli_private_t *priv)
     }
 
     output_string(priv, "\r\n");
+}
+
+/**
+ * @brief イベント処理「CLI_EVENT_INPUT_INTERRUPT」
+ */
+static void cli_event_input_interrupt( cli_private_t *priv, cli_event_t ev )
+{
+    ;
 }
 
 /**
@@ -457,6 +574,48 @@ static void cli_tokenizer(cli_private_t *priv)
         /* 引数の最大数に達していない場合は、argvの最後をNULLにする */
         priv->argument.vector[priv->argument.count] = NULL;
     }
+}
+
+static void cli_line_redisplay( cli_private_t * priv )
+{
+    char buf[8];
+    size_t p_len = strlen(priv->prompt);
+    size_t c_len = cli_text_get_cursor_pos(priv);
+
+    uint16_t pos = p_len + c_len;
+
+    char *text = (char *)cli_text_get_current_line(priv);
+
+    buf[0] = '\r';
+    buf[1] = '\e';
+    buf[2] = '[';
+
+    if (pos > 99)
+    {
+        buf[3] = ((pos / 100) % 10) + '0';
+        buf[4] = ((pos /  10) % 10) + '0';
+        buf[5] = ((pos /   1) % 10) + '0';
+        buf[6] = 'C';
+        buf[7] = '\0';
+    }
+    else if (pos > 9)
+    {
+        buf[3] = ((pos /  10) % 10) + '0';
+        buf[4] = ((pos /   1) % 10) + '0';
+        buf[5] = 'C';
+        buf[6] = '\0';
+    }
+    else
+    {
+        buf[3] = ((pos /   1) % 10) + '0';
+        buf[4] = 'C';
+        buf[5] = '\0';
+    }
+
+    output_string(priv, "\033[2K\r");                   /* テキスト行を行ごと削除 */
+    output_string(priv, priv->prompt);                  /* プロンプト */
+    output_string(priv, text);                          /* テキスト */
+    output_string(priv, buf);                           /* カーソル位置 */
 }
 
 

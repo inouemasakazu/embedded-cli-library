@@ -51,6 +51,15 @@ typedef enum
     CLI_IMPL_CODE_MAX
 } cli_impl_code_t;
 
+/**
+ * @brief CLIのシステム状態
+ */
+typedef enum {
+    CLI_SYSTEM_STATE_IDLE = 0,
+    CLI_SYSTEM_STATE_RUNNING,
+    CLI_SYSTEM_STATE_MAX
+} cli_system_t;
+
 typedef enum
 {
     CLI_PARSE_NOMAL = 0,
@@ -105,6 +114,7 @@ typedef struct
 {
     const char *prompt;
 
+    cli_system_t system;
     cli_parse_t parse_state;
 
     cli_event_t event;
