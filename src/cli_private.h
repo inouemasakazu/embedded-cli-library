@@ -36,6 +36,28 @@
 /*** ASCiiコード(図形文字) ***/
 #define SPC                 ' '     /* 空白文字 */
 
+
+/****************************************************************************************************
+ * Public MACROS
+ ****************************************************************************************************/
+
+#define CONCAT_SYM_SUB(a, b)    a ## b
+#define CONCAT_SYM(a, b)        CONCAT_SYM_SUB(a, b)
+
+
+#define CLI_ASSERT_HANDLER      while (1);
+
+#define CLI_STATIC_ASSERT(expr, name)  \
+    typedef char CONCAT_SYM(static_assert_##name##_, __LINE__)[(expr) ? 1 : -1]
+
+#define CLI_ASSERT(expr)                    \
+    do {                                    \
+        if (!(expr)) {                      \
+            CLI_ASSERT_HANDLER              \
+        }                                   \
+    } while (0)
+
+
 /****************************************************************************************************
  * Public typedef
  ****************************************************************************************************/

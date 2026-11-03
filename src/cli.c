@@ -24,16 +24,27 @@
 /****************************************************************************************************
  * Private define
  ****************************************************************************************************/
-#ifdef CLI_DEBUG
-    #define CLI_ASSERT(expr) \
-    do { \
-        if (!(expr)) { \
-            while (1); \
-        } \
-    } while (0)
-#else
-    #define CLI_ASSERT(expr) ((void)0U)
-#endif /* CLI_DEBUG */
+
+/****************************************************************************************************
+ * Private MACROS
+ ****************************************************************************************************/
+
+ /**
+  * @brief 型定義のサイズ保証用マクロ
+  * @attention
+  * 外部公開サイズ(cli_context_t) >= 内部サイズ(cli_private_t) を保証します。
+  * 条件を満たさない場合はコンパイルエラーになります。
+  */
+CLI_STATIC_ASSERT(sizeof(cli_context_t) >= sizeof(cli_private_t), ctx_size_is_too_small);
+
+
+/**
+ * @brief アライメント調整マクロ
+ * @attention
+ * メモリのアライメント調整を目的としたマクロです。
+ * `size`にはメモリ、`align`には2の累乗（2, 4, 8, 16...）を設定してください。
+ */
+#define CLI_ALIGN_UP(size, align) (((size) + ((align) - 1)) & ~((align) - 1))
 
 /****************************************************************************************************
  * Private typedef
@@ -47,9 +58,6 @@ typedef void (* cli_handler)( cli_private_t *priv, cli_event_t ev );
 /****************************************************************************************************
  * Private Functions
  ****************************************************************************************************/
-
-static int cli_set_config(cli_private_t *priv, const cli_config_t *cfg, void *workspace, size_t size);
-static int cli_workspace_memory_layout(cli_private_t *priv, const cli_config_t *cfg, void *workspace, size_t size);
 
 static void cli_input_analysis( cli_private_t *priv, char c );
 
@@ -102,20 +110,58 @@ const static cli_handler cli_handler_matrix[CLI_SYSTEM_STATE_MAX][CLI_EVENT_MAX]
  * @param size      workspaceのメモリサイズ
  * @return 処理結果
  */
-cli_code_t cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace, size_t size)
+cli_code_t cli_init(cli_context_t * ctx, const cli_config_t * cfg, void * workspace, size_t size)
 {
     if (ctx == NULL) return CLI_ERROR_INVALID_INSTANCE;
+    if ((cfg == NULL) || (workspace == NULL)) return CLI_ERROR_INVALID_ARGUMENT;
+
+    if ((cfg->max_fifo_size == 0) || (cfg->max_line_size == 0) || (cfg->depth_argv == 0))
+    {
+        /* configパラメータエラー */
+        return CLI_ERROR_CONFIG_PARM;
+    }
+
+    if (size < cli_get_workspace_size(cfg))
+    {
+        /* メモリサイズ不足 */
+        return CLI_ERROR_MEMORY_SIZE;
+    }
 
     cli_private_t *priv = get_priv(ctx);
 
     /* メモリ0クリア */
     memset(priv, 0, sizeof(*priv));
 
-    /* 設定データを展開 */
-    if (cli_set_config(priv, cfg, workspace, size) != 0)
-    {
-        return -2;
-    }
+    /* 設定パラメータをコピー */
+    priv->prompt = cfg->prompt;
+
+    priv->fifo_size                  = cfg->max_fifo_size;
+    priv->text.current_line_max_size = cfg->max_line_size;
+    priv->text.history_depth         = cfg->depth_history;
+    priv->argument.max_size          = cfg->depth_argv;
+
+    /* ワークスペースのアドレスを整数型に変換して切り分け開始 */
+    uintptr_t current_addr = (uintptr_t)workspace;
+
+    current_addr  = CLI_ALIGN_UP(current_addr, sizeof(char *));
+    priv->fifo    = (uint8_t *)current_addr;
+    current_addr += cfg->max_fifo_size;
+
+    priv->text.current_line = (uint8_t *)current_addr;
+    current_addr += cfg->max_line_size;
+
+    priv->text.history_buffer = (uint8_t *)current_addr;
+    current_addr += (cfg->max_line_size * cfg->depth_history);
+
+    current_addr  = CLI_ALIGN_UP(current_addr, sizeof(char *));
+    priv->argument.vector = (char **)current_addr;
+    current_addr += (cfg->depth_argv * sizeof(char **));
+
+    /* メモリ0クリア */
+    memset(priv->fifo,                0, cfg->max_fifo_size);
+    memset(priv->text.current_line,   0, cfg->max_line_size);
+    memset(priv->text.history_buffer, 0, (cfg->max_line_size * cfg->depth_history));
+    memset(priv->argument.vector    , 0, (cfg->depth_argv * sizeof(char **)));
 
     return CLI_OK;
 }
@@ -204,90 +250,43 @@ cli_code_t cli_send_char(cli_context_t *ctx, char c)
     return CLI_OK;
 }
 
+/**
+ * @brief workspaceの必要サイズ取得
+ *        指定された設定パラメータからworkspaceに必要なメモリサイズを算出します。
+ * @param cfg 設定パラメータのポインタ
+ * @return 必要サイズ
+ */
+size_t cli_get_workspace_size(const cli_config_t * cfg)
+{
+    if ( (cfg == NULL)
+    ||  ((cfg->max_fifo_size == 0) || (cfg->max_line_size == 0) || (cfg->depth_argv == 0)))
+    {
+        return 0;
+    }
+
+    size_t total_required_size = 0;
+
+    /* 最初に要求される最大アライメント（ポインタの4byte）のパディングを足す */
+    total_required_size += (sizeof(char *) - 1);
+
+    total_required_size += cfg->max_fifo_size;
+    total_required_size += cfg->max_line_size;
+    total_required_size += cfg->max_line_size * cfg->depth_history;
+
+    /* 4byteのメモリアライメントにするため切り上げておく */
+    total_required_size  = CLI_ALIGN_UP(total_required_size, sizeof(char *));
+    total_required_size += cfg->depth_argv * sizeof(char *);
+
+    /* 最終的なメモリアライメントに調整 */
+    total_required_size  = CLI_ALIGN_UP(total_required_size, 4);
+
+    return total_required_size;
+}
+
 
 /********************
  * static functions
  ********************/
-
-/**
- * @brief 設定データ展開
- * @param priv      制御データ(context)のポインタ
- * @param cfg       設定データのポインタ
- * @param workspace workspaceのポインタ
- * @param size      workspaceのメモリサイズ
- * @return 処理結果
- */
-static int cli_set_config(cli_private_t *priv, const cli_config_t *cfg, void *workspace, size_t size)
-{
-    if (cfg == NULL) return -1;
-    if (workspace == NULL) return -1;
-
-    if (cli_workspace_memory_layout(priv, cfg, workspace, size) == 0)
-    {
-        /* プロンプト設定 */
-        cli_set_prompt(priv, cfg->prompt);
-    }
-    else
-    {
-        return -2;
-    }
-
-    return CLI_OK;
-}
-
-/**
- * @brief ワークスペースのメモリレイアウト
- */
-int cli_workspace_memory_layout(cli_private_t *priv, const cli_config_t *cfg, void *workspace, size_t size)
-{
-    uint32_t total = 0;
-
-    /* 設定データからCLIが使用するワーキングメモリーの必要byte数を算出 */
-    total = cfg->max_line_size;
-    total = total + (cfg->depth_argv * sizeof(char *));
-    total = total + (cfg->max_line_size * cfg->depth_history);
-
-    if (0 == size)
-    {
-        /* workspaceのサイズがない */
-        return -1;
-    }
-    else if (total > size)
-    {
-        /* workspaceのサイズが不足 */
-        return -2;
-    }
-    else
-    {
-        /* DO NOTHING */
-    }
-
-    uint32_t offset = 0;
-
-    memset(workspace, 0x00, size);
-
-    priv->fifo                       = workspace;
-    priv->fifo_size                  = cfg->max_fifo_size;
-
-    offset = cfg->max_fifo_size;
-
-    priv->text.current_line          = (workspace + offset);
-    priv->text.current_line_max_size = cfg->max_line_size;
-
-    offset = offset + cfg->max_line_size;
-
-    priv->text.history_buffer        = (workspace + offset);
-    priv->text.history_depth         = cfg->depth_history;
-
-    offset = offset + (cfg->max_line_size * cfg->depth_history);
-
-    priv->argument.vector = (char **)(workspace + offset);
-    priv->argument.max_size = (cfg->depth_argv * sizeof(char *));
-
-    offset = offset + priv->argument.max_size;
-
-    return CLI_OK;
-}
 
 /**
  * @brief 入力解析

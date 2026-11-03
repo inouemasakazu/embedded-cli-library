@@ -19,18 +19,25 @@
  * Public define
  ****************************************************************************************************/
 
+/* 不透明型で定義するデータ構造のメモリサイズ */
+#define CLI_CONTEXT_OPAQUE_BYTES        (128)
+#define CLI_CONTEXT_OPAQUE_WORDS        (CLI_CONTEXT_OPAQUE_BYTES / sizeof(uint32_t))
+
 /****************************************************************************************************
  * Public typedef
  ****************************************************************************************************/
 
 /**
- * @brief インスタンス生成用構造体
- *        本データは公開APIを介してのみ、アクセスが可能。
- *        操作を行った場合は動作の保証ができない。
+ * @brief インスタンス定義用の不透明型構造体
+ * 
+ * @note
+ * 4バイト（uint32_t）アライメントを強制するための配列定義です。
+ * このデータ構造に対しての直接操作は禁止しています。
+ * データ構造に対する操作はAPIを介してのみ許可しています。APIを使用しない場合の動作は保証できません。
  */
 typedef struct
 {
-    uint32_t opaque[32];
+    uint32_t opaque[CLI_CONTEXT_OPAQUE_WORDS];
 } cli_context_t;
 
 
@@ -43,6 +50,9 @@ typedef enum
 
     CLI_ERROR_INVALID_INSTANCE,
     CLI_ERROR_INVALID_ARGUMENT,
+
+    CLI_ERROR_CONFIG_PARM,
+    CLI_ERROR_MEMORY_SIZE,
 
     CLI_ERROR_SEND_CHAR_BUSY,
 
@@ -110,12 +120,12 @@ typedef struct
 
 
 /**
- * @brief CLI利用時の設定データ
+ * @brief 設定パラメータ構造体
  */
 typedef struct
 {
     /** プロンプトに表示する文字列*/
-    const char *prompt;
+    const char * prompt;
 
     /** 入力可能な文字データのバッファサイズ(byte) */
     uint16_t max_fifo_size;
@@ -146,7 +156,7 @@ typedef struct
  * @param size      workspaceのメモリサイズ
  * @return 処理結果
  */
-cli_code_t cli_init(cli_context_t *ctx, const cli_config_t *cfg, void *workspace, size_t size);
+cli_code_t cli_init(cli_context_t * ctx, const cli_config_t * cfg, void * workspace, size_t size);
 
 /**
  * @brief 初期化解除
@@ -169,6 +179,15 @@ cli_code_t cli_process(cli_context_t *ctx);
  * @return 処理結果
  */
 cli_code_t cli_send_char(cli_context_t *ctx, char c);
+
+/**
+ * @brief workspaceの必要サイズ取得
+ *        指定された設定パラメータからworkspaceに必要なメモリサイズを算出します。
+ * @param cfg 設定パラメータのポインタ
+ * @return 必要サイズ
+ */
+size_t cli_get_workspace_size(const cli_config_t * cfg);
+
 
 /********************
  * Command functions
