@@ -284,6 +284,25 @@ size_t cli_get_workspace_size(const cli_config_t * cfg)
 }
 
 
+/**
+ * @brief writeインターフェース登録
+ * @param ctx  制御データ(context)のポインタ
+ * @param output writeインターフェースのポインタ
+ * @return 処理結果
+ */
+cli_code_t cli_output_register(cli_context_t * ctx, const cli_output_t * output)
+{
+    if (ctx == NULL) return CLI_ERROR_INVALID_INSTANCE;
+    if (output == NULL) return CLI_ERROR_INVALID_ARGUMENT;
+
+    cli_private_t *priv = get_priv(ctx);
+
+    priv->output = output;
+
+    return CLI_OK;
+}
+
+
 /********************
  * static functions
  ********************/

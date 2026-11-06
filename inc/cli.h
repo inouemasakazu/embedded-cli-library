@@ -211,4 +211,12 @@ cli_code_t cli_command_register(cli_context_t *ctx, const cli_command_t *list, u
 cli_code_t cli_command_unregister(cli_context_t *ctx);
 
 
+/**
+ * @brief writeインターフェース登録
+ * @param ctx  制御データ(context)のポインタ
+ * @param output writeインターフェースのポインタ
+ * @return 処理結果
+ */
+cli_code_t cli_output_register(cli_context_t * ctx, const cli_output_t * output);
+
 #endif  /* __CLI_H__ */
