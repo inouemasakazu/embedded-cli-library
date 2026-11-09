@@ -68,7 +68,7 @@ cli_code_t cli_puts( cli_context_t * ctx, const char * p )
 
     cli_private_t *priv = get_priv(ctx);
 
-    if ( '\0' == *p )
+    if ( '\0' != *p )
     {
         if ( output_write( priv, p, strlen(p) ) != CLI_IMPL_OK )
         {
