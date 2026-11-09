@@ -67,11 +67,9 @@ typedef enum
  */
 typedef enum
 {
-    CLI_COMMAND_OK,
-
+    CLI_COMMAND_COMPLETE,
     CLI_COMMAND_RUNNING,
-    CLI_COMMAND_SUSPEND,
-    CLI_COMMAND_ERROR_NOT_FOUND,
+    CLI_COMMAND_ERROR,
 
     CLI_COMMAND_MAX
 } cli_command_code_t;
