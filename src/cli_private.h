@@ -160,6 +160,8 @@ typedef struct
     const cli_command_t *command_list;
     uint16_t list_size;
 
+    const cli_command_t * active_command;
+
     const cli_output_t * output;
 } cli_private_t;
 

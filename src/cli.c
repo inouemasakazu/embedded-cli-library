@@ -49,7 +49,15 @@ CLI_STATIC_ASSERT(sizeof(cli_context_t) >= sizeof(cli_private_t), ctx_size_is_to
 /****************************************************************************************************
  * Private typedef
  ****************************************************************************************************/
-typedef void (* cli_handler)( cli_private_t *priv, cli_event_t ev );
+
+typedef enum
+{
+    CLI_EVENT_OK = 0,
+    CLI_EVENT_RUNNING,
+    CLI_EVENT_ERROR
+} cli_event_code_t;
+
+typedef cli_event_code_t (* cli_event_handler_t)(cli_private_t *priv, cli_event_t ev);
 
 /****************************************************************************************************
  * Private Variables
@@ -63,18 +71,18 @@ static void cli_input_analysis( cli_private_t *priv, char c );
 
 static void cli_emit_event( cli_private_t *priv, bool is_control, char command );
 
-static void cli_event_none( cli_private_t *priv, cli_event_t ev );
-static void cli_event_text( cli_private_t *priv, cli_event_t ev );
-static void cli_event_cursor_move( cli_private_t *priv, cli_event_t ev );
-static void cli_event_backspace( cli_private_t *priv, cli_event_t ev );
-static void cli_event_enter( cli_private_t *priv, cli_event_t ev );
-static void cli_event_input_interrupt( cli_private_t *priv, cli_event_t ev );
+static cli_event_code_t cli_event_none(cli_private_t * priv, cli_event_t ev);
+static cli_event_code_t cli_event_text(cli_private_t * priv, cli_event_t ev);
+static cli_event_code_t cli_event_cursor_move(cli_private_t * priv, cli_event_t ev);
+static cli_event_code_t cli_event_backspace(cli_private_t * priv, cli_event_t ev);
+static cli_event_code_t cli_event_enter(cli_private_t * priv, cli_event_t ev);
+static cli_event_code_t cli_event_input_interrupt(cli_private_t * priv, cli_event_t ev);
 
 static void cli_line_redisplay( cli_private_t * priv );
 
 static void cli_tokenizer(cli_private_t *priv);
 
-static void cli_command_execute(cli_private_t *priv);
+static cli_command_code_t cli_command_execute(cli_private_t * priv);
 static const cli_command_t *cli_command_find(cli_private_t *priv, const char *name);
 
 static cli_impl_code_t cli_fifo_push(cli_private_t * priv, uint8_t data);
@@ -91,16 +99,15 @@ static const cli_command_t *cli_get_command_list(cli_private_t *priv);
 static uint16_t cli_get_command_list_size(cli_private_t *priv);
 
 /**
- * @brief ステートマシン関数マトリクス
+ * @brief イベントハンドラの関数マトリクス
  *        状態×イベントの組み合わせによる関数マトリクス
  */
-const static cli_handler cli_handler_matrix[CLI_SYSTEM_STATE_MAX][CLI_EVENT_MAX] =
+const static cli_event_handler_t cli_event_handler_matrix[CLI_SYSTEM_STATE_MAX][CLI_EVENT_MAX] =
 {
-    /* [STATE / EVENT TYPE]   [ CLI_EVENT_NONE, CLI_EVENT_TEXT, CLI_EVENT_CURSOR_MOVE, CLI_EVENT_BACKSPACE, CLI_EVENT_ENTER, CLI_EVENT_INPUT_INTERRUPT ] */
-    [CLI_SYSTEM_STATE_IDLE   ]{ cli_event_none, cli_event_text, cli_event_cursor_move, cli_event_backspace, cli_event_enter, cli_event_none            },
-    [CLI_SYSTEM_STATE_RUNNING]{ cli_event_none, cli_event_none, cli_event_none       , cli_event_none     , cli_event_none , cli_event_input_interrupt }
+    /* [STATE / EVENT TYPE]      [ CLI_EVENT_NONE, CLI_EVENT_TEXT, CLI_EVENT_CURSOR_MOVE, CLI_EVENT_BACKSPACE, CLI_EVENT_ENTER, CLI_EVENT_INPUT_INTERRUPT ] */
+    [CLI_SYSTEM_STATE_IDLE   ] = { NULL,           cli_event_text, cli_event_cursor_move, cli_event_backspace, cli_event_enter, NULL                      },
+    [CLI_SYSTEM_STATE_RUNNING] = { NULL,           NULL          , NULL                 , NULL               , NULL           , cli_event_input_interrupt }
 };
-
 
 /**
  * @brief CLI初期化
@@ -197,32 +204,42 @@ cli_code_t cli_process(cli_context_t *ctx)
     while ( cli_fifo_is_items( priv ) )
     {
         uint8_t c;
-        cli_handler handler = NULL;
 
         if ( CLI_IMPL_OK == cli_fifo_pull( priv, &c ) )
         {
             cli_input_analysis( priv, ((char)c) );
         }
 
-        switch ( priv->system )
+        cli_event_handler_t event_handler = NULL;
+        cli_event_code_t    event_code    = CLI_EVENT_OK;
+
+        event_handler = cli_event_handler_matrix[priv->system][priv->event.type];
+        if (event_handler)
         {
-        case CLI_SYSTEM_STATE_IDLE:
-            handler = cli_handler_matrix[CLI_SYSTEM_STATE_IDLE][priv->event.type];
+            /* イベントハンドラ */
+            event_code = event_handler(priv, priv->event);
 
-            if (handler)
+            /* システム状態管理 */
+            switch (priv->system)
             {
-                handler( priv, priv->event );
+            case CLI_SYSTEM_STATE_IDLE:
+                if (event_code == CLI_EVENT_RUNNING)
+                {
+                    priv->system = CLI_SYSTEM_STATE_RUNNING;
+                }
+                break;
 
-                cli_line_redisplay( priv );
+            case CLI_SYSTEM_STATE_RUNNING:
+                if (event_code == CLI_EVENT_OK)
+                {
+                    priv->system = CLI_SYSTEM_STATE_IDLE;
+                }
+                break;
+
+            default:
+                /* DO NOTHING */
+                break;
             }
-            break;
-
-        case CLI_SYSTEM_STATE_RUNNING:
-            handler = cli_handler_matrix[CLI_SYSTEM_STATE_RUNNING][priv->event.type];
-            break;
-
-        default:
-            break;
         }
     }
 
@@ -432,24 +449,27 @@ static void cli_emit_event( cli_private_t *priv, bool is_control, char command )
 /**
  * @brief イベント処理「CLI_EVENT_NONE」
  */
-static void cli_event_none( cli_private_t *priv, cli_event_t ev )
+static cli_event_code_t cli_event_none(cli_private_t * priv, cli_event_t ev)
 {
     /* DO NOTHING */
+    return CLI_EVENT_OK;
 }
 
 /**
  * @brief イベント処理「CLI_EVENT_TEXT」
  */
-static void cli_event_text( cli_private_t *priv, cli_event_t ev )
+static cli_event_code_t cli_event_text(cli_private_t * priv, cli_event_t ev)
 {
     /* コマンドラインにキャラクタを追加 */
     cli_text_add_char( priv, ev.parm[0] );
+
+    return CLI_EVENT_OK;
 }
 
 /**
  * @brief イベント処理「CLI_EVENT_CURSOR_MOVE」
  */
-static void cli_event_cursor_move( cli_private_t *priv, cli_event_t ev )
+static cli_event_code_t cli_event_cursor_move(cli_private_t * priv, cli_event_t ev)
 {
     const char * text = NULL;
 
@@ -491,51 +511,67 @@ static void cli_event_cursor_move( cli_private_t *priv, cli_event_t ev )
         /* DO NOTHING */
         break;
     }
+
+    return CLI_EVENT_OK;
 }
 
 /**
  * @brief イベント処理「CLI_EVENT_BACKSPACE」
  */
-static void cli_event_backspace( cli_private_t *priv, cli_event_t ev )
+static cli_event_code_t cli_event_backspace(cli_private_t * priv, cli_event_t ev)
 {
     cli_text_delete_char( priv );
+
+    return CLI_EVENT_OK;
 }
 
 /**
  * @brief イベント処理「CLI_EVENT_ENTER」
  */
-static void cli_event_enter( cli_private_t *priv, cli_event_t ev )
+static cli_event_code_t cli_event_enter(cli_private_t * priv, cli_event_t ev)
 {
     char *text = (char *)cli_text_get_current_line(priv);
-    size_t text_len = strlen((const char *)text);
 
-    if (0 < text_len)
+    if ('\0' != *text)
     {
-        /* 現在のテキストデータを履歴データとして保存 */
+        /* コマンドラインを履歴バッファに送信 */
         cli_text_storage_text(priv, (const char *)text);
 
-        /* コマンドラインをトークン化 */
+        /* トークン化 */
         cli_tokenizer(priv);
 
-        if (0 < priv->argument.count)
-        {
-            /* コマンド実行 */
-            cli_command_execute(priv);
-        }
+        /* コマンドハンドラを実行 */
+        cli_command_code_t result = cli_command_execute(priv);
 
-        /* テキストをすべて消去 */
+        /* コマンドライン削除 */
         cli_text_delete_text(priv);
+
+        if (result == CLI_COMMAND_RUNNING)
+        {
+            return CLI_EVENT_RUNNING;
+        }
     }
 
-    output_string(priv, "\r\n");
+    return CLI_EVENT_OK;
 }
 
 /**
  * @brief イベント処理「CLI_EVENT_INPUT_INTERRUPT」
  */
-static void cli_event_input_interrupt( cli_private_t *priv, cli_event_t ev )
+static cli_event_code_t cli_event_input_interrupt(cli_private_t * priv, cli_event_t ev)
 {
-    ;
+    if (priv->active_command)
+    {
+        if (CLI_COMMAND_COMPLETE != priv->active_command->callback())
+        {
+            return CLI_EVENT_RUNNING;
+        }
+
+        /* アクティブコマンドを削除 */
+        priv->active_command = NULL;
+    }
+
+    return CLI_EVENT_OK;
 }
 
 /**
@@ -682,30 +718,48 @@ cli_code_t cli_command_unregister(cli_context_t *ctx)
  * @param priv 制御データ(context)のポインタ
  * @return None
  */
-static void cli_command_execute(cli_private_t *priv)
+static cli_command_code_t cli_command_execute(cli_private_t * priv)
 {
     int argc    = priv->argument.count;
     char **argv = priv->argument.vector;
 
-    if ((argc != 0) || (argv != NULL))
-    {
-        const cli_command_t *command = cli_command_find(priv, argv[0]);
+    cli_command_code_t code = CLI_COMMAND_COMPLETE;
 
-        if (command)
+    /* コマンド検索 */
+    priv->active_command = cli_command_find(priv, argv[0]);
+
+    if (priv->active_command)
+    {
+        code = priv->active_command->handler(argc, argv);
+        switch (code)
         {
-            /* ハンドラ実行 */
-            if (command->handler(argc, argv) != 0)
-            {
-                output_string(priv, "\r\nError: command execution failed\r\n");
-            }
-        }
-        else
-        {
-            output_string(priv, "\r\nError: '");
-            output_string(priv, priv->argument.vector[0]);
-            output_string(priv, "' command not found\r\n");
+        case CLI_COMMAND_RUNNING:
+            /* 状態遷移を要求 */
+            code = CLI_COMMAND_RUNNING;
+            break;
+
+        case CLI_COMMAND_ERROR:
+            /* コマンド実行失敗 */
+            output_string(priv, "\r\nError: command execution failed\r\n");
+            /* Fall-through */
+
+        case CLI_COMMAND_COMPLETE:
+            /* アクティブコマンドを破棄 */
+            priv->active_command = NULL;
+            break;
+
+        default:
+            break;
         }
     }
+    else
+    {
+        output_string(priv, "\r\nError: '");
+        output_string(priv, priv->argument.vector[0]);
+        output_string(priv, "' command not found\r\n");
+    }
+
+    return code;
 }
 
 /**
@@ -715,7 +769,7 @@ static void cli_command_execute(cli_private_t *priv)
  * @param name 探索対象の名称(登録名)を示すポインタ
  * @return コマンドのポインタ、またはNULLポインタ
  */
-static const cli_command_t *cli_command_find(cli_private_t *priv, const char *name)
+static const cli_command_t * cli_command_find(cli_private_t *priv, const char *name)
 {
     if (name == NULL) return NULL;
 
@@ -729,7 +783,7 @@ static const cli_command_t *cli_command_find(cli_private_t *priv, const char *na
             if ((strcmp(list->name, name) == 0) && (list->handler))
             {
                 /* リスト内にコマンドあり */
-                return (cli_command_t *)list;
+                return list;
             }
             else
             {
