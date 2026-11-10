@@ -358,6 +358,9 @@ static void cli_input_analysis(cli_private_t * priv, char c)
                 /* エスケープコード（ESC）を確認 */
                 /* ANSI識別文字の受信待ちに遷移 */
                 priv->parse_state = CLI_PARSE_ESC;
+
+                /* TBD バグの暫定対処（シーケンス解析時に意図しないタイミングでイベントハンドラが起動するため） */
+                cli_emit_event( priv, 1, '\0' );
             }
             else
             {
@@ -384,6 +387,9 @@ static void cli_input_analysis(cli_private_t * priv, char c)
             /* 不正なシーケンスは無視して通常状態に戻す */
             priv->parse_state = CLI_PARSE_NOMAL;
         }
+
+        /* TBD バグの暫定対処（シーケンス解析時に意図しないタイミングでイベントハンドラが起動するため） */
+        cli_emit_event( priv, 1, '\0' );
 
         break;
 
