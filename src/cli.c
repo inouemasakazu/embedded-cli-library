@@ -67,7 +67,8 @@ typedef cli_event_code_t (* cli_event_handler_t)(cli_private_t *priv, cli_event_
  * Private Functions
  ****************************************************************************************************/
 
-static void cli_input_analysis( cli_private_t *priv, char c );
+static bool cli_input_process(cli_private_t * priv);
+static void cli_input_analysis( cli_private_t * priv, char c );
 
 static void cli_emit_event( cli_private_t *priv, bool is_control, char command );
 
@@ -199,21 +200,14 @@ cli_code_t cli_deinit(cli_context_t *ctx)
  * @param ctx       制御データ(context)のポインタ
  * @return 処理結果
  */
-cli_code_t cli_process(cli_context_t *ctx)
+cli_code_t cli_process(cli_context_t * ctx)
 {
     if (ctx == NULL) return CLI_ERROR_INVALID_INSTANCE;
 
     cli_private_t *priv = get_priv(ctx);
 
-    while ( cli_fifo_is_items( priv ) )
+    while (cli_input_process(priv))
     {
-        uint8_t c;
-
-        if ( CLI_IMPL_OK == cli_fifo_pull( priv, &c ) )
-        {
-            cli_input_analysis( priv, ((char)c) );
-        }
-
         cli_event_handler_t event_handler = NULL;
         cli_event_code_t    event_code    = CLI_EVENT_OK;
 
@@ -331,11 +325,28 @@ cli_code_t cli_output_register(cli_context_t * ctx, const cli_output_t * output)
  * static functions
  ********************/
 
+
+static bool cli_input_process(cli_private_t * priv)
+{
+    uint8_t data = 0;
+
+    if ( CLI_IMPL_ERROR_FIFO_EMPTY == cli_fifo_pull(priv, &data) )
+    {
+        /* バッファ内にデータなし */
+        return false;
+    }
+
+    /* 入力解析 */
+    cli_input_analysis(priv, (char)data);
+
+    return true;
+}
+
 /**
  * @brief 入力解析
  *        キャラクタ・制御文字・エスケープシーケンスの解析を行い、解析結果に応じたイベントを発行する
  */
-static void cli_input_analysis( cli_private_t *priv, char c )
+static void cli_input_analysis(cli_private_t * priv, char c)
 {
     switch ( priv->parse_state )
     {
