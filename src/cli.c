@@ -620,12 +620,10 @@ static cli_event_code_t cli_event_input_interrupt(cli_private_t * priv, cli_even
 static void cli_tokenizer(cli_private_t *priv)
 {
     char *token = (char *)cli_text_get_current_line(priv);
-    uint32_t max_count = 0;
+    uint32_t max_count = priv->argument.max_size;
 
     priv->argument.count = 0;
-    memset(priv->argument.vector, 0x00, priv->argument.max_size);
-
-    max_count = (priv->argument.max_size / sizeof(char *));
+    memset(priv->argument.vector, 0x00, (max_count * sizeof(char **)));
 
     /* コマンドラインをスペース区切りでトークンに分割 */
     while ((*token != '\0') && (priv->argument.count < max_count))
