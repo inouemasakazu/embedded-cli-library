@@ -78,7 +78,9 @@ static cli_event_code_t cli_event_backspace(cli_private_t * priv, cli_event_t ev
 static cli_event_code_t cli_event_enter(cli_private_t * priv, cli_event_t ev);
 static cli_event_code_t cli_event_input_interrupt(cli_private_t * priv, cli_event_t ev);
 
-static void cli_line_redisplay( cli_private_t * priv );
+static void cli_render_process(cli_private_t * priv);
+static void cli_render_required(cli_private_t * priv, cli_render_required_t required);
+static void cli_render_commandline(cli_private_t * priv);
 
 static void cli_tokenizer(cli_private_t *priv);
 
@@ -170,6 +172,8 @@ cli_code_t cli_init(cli_context_t * ctx, const cli_config_t * cfg, void * worksp
     memset(priv->text.history_buffer, 0, (cfg->max_line_size * cfg->depth_history));
     memset(priv->argument.vector    , 0, (cfg->depth_argv * sizeof(char **)));
 
+    cli_render_required(priv, CLI_RENDER_STARTUP);
+
     return CLI_OK;
 }
 
@@ -242,6 +246,9 @@ cli_code_t cli_process(cli_context_t *ctx)
             }
         }
     }
+
+    /* レンダリング */
+    cli_render_process(priv);
 
     return CLI_OK;
 }
@@ -463,6 +470,8 @@ static cli_event_code_t cli_event_text(cli_private_t * priv, cli_event_t ev)
     /* コマンドラインにキャラクタを追加 */
     cli_text_add_char( priv, ev.parm[0] );
 
+    cli_render_required(priv, CLI_RENDER_COMMANDLINE);
+
     return CLI_EVENT_OK;
 }
 
@@ -512,6 +521,8 @@ static cli_event_code_t cli_event_cursor_move(cli_private_t * priv, cli_event_t 
         break;
     }
 
+    cli_render_required(priv, CLI_RENDER_COMMANDLINE);
+
     return CLI_EVENT_OK;
 }
 
@@ -521,6 +532,8 @@ static cli_event_code_t cli_event_cursor_move(cli_private_t * priv, cli_event_t 
 static cli_event_code_t cli_event_backspace(cli_private_t * priv, cli_event_t ev)
 {
     cli_text_delete_char( priv );
+
+    cli_render_required(priv, CLI_RENDER_COMMANDLINE);
 
     return CLI_EVENT_OK;
 }
@@ -552,6 +565,8 @@ static cli_event_code_t cli_event_enter(cli_private_t * priv, cli_event_t ev)
         }
     }
 
+    cli_render_required(priv, CLI_RENDER_LINE_BREAK);
+
     return CLI_EVENT_OK;
 }
 
@@ -570,6 +585,8 @@ static cli_event_code_t cli_event_input_interrupt(cli_private_t * priv, cli_even
         /* アクティブコマンドを削除 */
         priv->active_command = NULL;
     }
+
+    cli_render_required(priv, CLI_RENDER_LINE_BREAK);
 
     return CLI_EVENT_OK;
 }
@@ -627,7 +644,43 @@ static void cli_tokenizer(cli_private_t *priv)
     }
 }
 
-static void cli_line_redisplay( cli_private_t * priv )
+static void cli_render_process(cli_private_t * priv)
+{
+    switch (priv->render_required)
+    {
+    case CLI_RENDER_NONE:
+        /* DO NOTIHNG */
+        break;
+
+    case CLI_RENDER_STARTUP:
+        /* TBD 表記内容は要検討（ライブラリ名称とバージョン表記は欲しい） */
+        output_string(priv, "\r\nLightweight CLI library for embedded systems[v0.0.0]");
+        output_string(priv, "\r\n");
+        output_string(priv, priv->prompt);
+        break;
+
+    case CLI_RENDER_COMMANDLINE:
+        cli_render_commandline(priv);
+        break;
+
+    case CLI_RENDER_LINE_BREAK:
+        output_string(priv, "\r\n");
+        output_string(priv, priv->prompt);
+        break;
+
+    default:
+        break;
+    }
+
+    cli_render_required(priv, CLI_RENDER_NONE);
+}
+
+static void cli_render_required(cli_private_t * priv, cli_render_required_t required)
+{
+    priv->render_required = required;
+}
+
+static void cli_render_commandline( cli_private_t * priv )
 {
     char buf[8];
     size_t p_len = strlen(priv->prompt);

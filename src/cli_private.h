@@ -111,6 +111,14 @@ typedef struct
     char parm[4];
 } cli_event_t;
 
+typedef enum
+{
+    CLI_RENDER_NONE = 0,
+    CLI_RENDER_STARTUP,
+    CLI_RENDER_LINE_BREAK,
+    CLI_RENDER_COMMANDLINE
+} cli_render_required_t;
+
 typedef struct
 {
     /** 現在操作中のテキストデータ(コマンドライン)*/
@@ -152,6 +160,8 @@ typedef struct
 
     /** コマンドラインとして管理するテキストデータ */
     cli_text_t text;
+
+    cli_render_required_t render_required;
 
     /* コマンドライン引数 */
     cli_argument_t argument;
